@@ -1,9 +1,32 @@
 # CliniTrack Monorepo
 
-Este repositorio contiene las aplicaciones del sistema CliniTrack:
-- **apps/patient**: portal público para pacientes
-- **apps/staff**: portal privado para funcionarios
-- **packages/shared**: librerías y utilidades comunes
+Este repositorio contiene las aplicaciones del sistema CliniTrack, orientado a la gestión clínica con distintos perfiles de usuario.
+
+## 📂 Estructura actual
+
+clinitrack/
+├── apps/
+│ ├── pacientes/ → portal público para pacientes
+│ └── staff/ → portal privado para funcionarios
+├── packages/
+│ └── shared/ → código compartido (dominio, repositorios, adaptadores)
+├── README.md
+└── .gitignore
+
+## 📝 Convenciones de commits
+
+Para mantener claridad y consistencia, se usarán prefijos en los mensajes de commit:
+
+- `chore:` tareas generales (estructura, configuración, limpieza)
+- `feat:` nuevas funcionalidades
+- `fix:` correcciones de errores
+- `docs:` cambios en documentación
+- `style:` cambios de formato/estilo (no funcionales)
+- `refactor:` reestructuración de código sin cambiar funcionalidad
+- `test:` adición o corrección de pruebas
+
+> Ejemplo: `feat: agregar login de pacientes con Firebase`
+
 
 ## Tecnologías
 - Vue 3
