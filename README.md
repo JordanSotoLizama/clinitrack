@@ -3,7 +3,7 @@
 Este repositorio contiene las aplicaciones del sistema CliniTrack, orientado a la gestión clínica con distintos perfiles de usuario.
 
 ## 📂 Estructura actual
-
+```
 clinitrack/
 ├── apps/
 │ ├── pacientes/ → portal público para pacientes
@@ -12,6 +12,7 @@ clinitrack/
 │ └── shared/ → código compartido (dominio, repositorios, adaptadores)
 ├── README.md
 └── .gitignore
+```
 
 ## 📝 Convenciones de commits
 
@@ -32,3 +33,7 @@ Para mantener claridad y consistencia, se usarán prefijos en los mensajes de co
 - Vue 3
 - Firebase
 - Vite
+
+## 📖 Bitácora de avances
+
+- **24-09-2025**: Creación de la estructura base del proyecto (apps/pacientes, apps/staff y packages/shared).
