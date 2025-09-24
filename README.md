@@ -37,3 +37,4 @@ Para mantener claridad y consistencia, se usarán prefijos en los mensajes de co
 ## 📖 Bitácora de avances
 
 - **24-09-2025**: Creación de la estructura base del proyecto (apps/pacientes, apps/staff y packages/shared).
+- **24-09-2025**: Se crea el esqueleto navegable de la aplicación *Pacientes* (layouts públicos y privados, vistas base y router).
