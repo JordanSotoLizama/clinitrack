@@ -4,7 +4,7 @@
     <div style="display:flex; gap:16px; align-items:flex-start;">
       <AppSidebar />
       <main style="flex:1;">
-        <router-view />
+        <slot />
       </main>
     </div>
   </div>
