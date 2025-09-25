@@ -13,6 +13,6 @@ import AppLayout from '../../layouts/AppLayout.vue'
 
 <style scoped>
 h2 {
-  color: red;
+  color: blue;
 }
 </style>
