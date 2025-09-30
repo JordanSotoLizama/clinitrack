@@ -1,20 +1,6 @@
 <template>
   <PublicLayout>
-    <div class="animated-bg">
-      <!-- Burbujas grandes y pequeñas -->
-      <div class="bubble"></div>
-      <div class="bubble"></div>
-      <div class="bubble"></div>
-      <div class="bubble"></div>
-      <div class="bubble"></div>
-      <div class="bubble small"></div>
-      <div class="bubble small"></div>
-      <div class="bubble small"></div>
-      <div class="bubble tiny"></div>
-      <div class="bubble tiny"></div>
-      <!-- Fondo animado con gradiente en movimiento -->
-      <div class="moving-gradient"></div>
-    </div>
+    <div class="login-bg"></div>
     <section>
       <h2>Ingresar</h2>
       <form>
@@ -41,113 +27,16 @@ body {
   position: relative;
 }
 
-/* Fondo animado con gradiente en movimiento */
-.moving-gradient {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
-  z-index: -2;
-  pointer-events: none;
-  background: linear-gradient(120deg, #e3f0ff 0%, #90caf9 50%, #f8fbff 100%);
-  background-size: 200% 200%;
-  animation: gradientMove 12s ease-in-out infinite;
-  opacity: 0.7;
-}
-
-@keyframes gradientMove {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-/* Fondo animado con burbujas */
-.animated-bg {
+/* Fondo con logo CliniTrack centrado y a pantalla completa */
+.login-bg {
   position: fixed;
   top: 0; left: 0;
   width: 100vw; height: 100vh;
   z-index: -1;
-  overflow: hidden;
-}
-
-.bubble {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.28;
-  background: linear-gradient(135deg, #1976d2 60%, #90caf9 100%);
-  animation: float 12s infinite ease-in-out;
-}
-.bubble.small {
-  width: 50px; height: 50px;
-  left: 15vw; bottom: -30px;
-  animation-delay: 3s;
-  opacity: 0.18;
-  background: linear-gradient(135deg, #42a5f5 60%, #bbdefb 100%);
-}
-.bubble.small:nth-child(7) {
-  left: 60vw; bottom: -20px;
-  animation-delay: 5s;
-}
-.bubble.small:nth-child(8) {
-  left: 85vw; bottom: -10px;
-  animation-delay: 7s;
-}
-.bubble.tiny {
-  width: 25px; height: 25px;
-  left: 35vw; bottom: -10px;
-  animation-delay: 2s;
-  opacity: 0.12;
-  background: linear-gradient(135deg, #1976d2 60%, #e3f0ff 100%);
-}
-.bubble.tiny:nth-child(10) {
-  left: 75vw; bottom: -5px;
-  animation-delay: 6s;
-}
-
-/* Burbujas grandes originales */
-.bubble:nth-child(1) {
-  width: 180px; height: 180px;
-  left: 10vw; bottom: -100px;
-  animation-delay: 0s;
-}
-.bubble:nth-child(2) {
-  width: 120px; height: 120px;
-  left: 70vw; bottom: -80px;
-  animation-delay: 2s;
-}
-.bubble:nth-child(3) {
-  width: 90px; height: 90px;
-  left: 40vw; bottom: -60px;
-  animation-delay: 4s;
-}
-.bubble:nth-child(4) {
-  width: 60px; height: 60px;
-  left: 80vw; bottom: -40px;
-  animation-delay: 6s;
-}
-.bubble:nth-child(5) {
-  width: 140px; height: 140px;
-  left: 25vw; bottom: -90px;
-  animation-delay: 8s;
-}
-
-@keyframes float {
-  0% {
-    transform: translateY(0) scale(1);
-    opacity: 0.35;
-  }
-  60% {
-    opacity: 0.5;
-  }
-  100% {
-    transform: translateY(-90vh) scale(1.15);
-    opacity: 0;
-  }
+  background: url('/clinitrack-logo.png') no-repeat center center;
+  background-size: 2000px auto;
+  opacity: 0.10;
+  pointer-events: none;
 }
 
 section {
