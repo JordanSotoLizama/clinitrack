@@ -1,4 +1,3 @@
-<!-- apps/pacientes/src/views/paciente/RegisterView.vue -->
 <template>
   <PublicLayout>
     <section class="page">
@@ -6,33 +5,28 @@
         <h1 class="title">Registro</h1>
         <p v-if="DEMO" class="demo">Modo demo: se simula la creación de la cuenta.</p>
 
+        <!-- UI-only: sin validaciones reales ni servicios -->
         <form @submit.prevent="onSubmit" novalidate class="form">
           <div class="row">
             <div class="field half">
               <label>Nombre</label>
               <input
                 v-model.trim="form.nombre"
-                @blur="touched.nombre = true"
                 type="text"
                 class="input"
-                :class="{ 'is-error': touched.nombre && errors.nombre }"
                 placeholder="Ej: Camilo"
                 autocomplete="given-name"
               />
-              <small v-if="touched.nombre && errors.nombre" class="msg error">{{ errors.nombre }}</small>
             </div>
             <div class="field half">
               <label>Apellido</label>
               <input
                 v-model.trim="form.apellido"
-                @blur="touched.apellido = true"
                 type="text"
                 class="input"
-                :class="{ 'is-error': touched.apellido && errors.apellido }"
                 placeholder="Ej: Bravo"
                 autocomplete="family-name"
               />
-              <small v-if="touched.apellido && errors.apellido" class="msg error">{{ errors.apellido }}</small>
             </div>
           </div>
 
@@ -41,27 +35,21 @@
               <label>Email</label>
               <input
                 v-model.trim="form.email"
-                @blur="touched.email = true"
                 type="email"
                 class="input"
-                :class="{ 'is-error': touched.email && errors.email }"
                 placeholder="tu@correo.com"
                 autocomplete="email"
               />
-              <small v-if="touched.email && errors.email" class="msg error">{{ errors.email }}</small>
             </div>
             <div class="field half">
               <label>Contraseña</label>
               <input
                 v-model="form.password"
-                @blur="touched.password = true"
                 type="password"
                 class="input"
-                :class="{ 'is-error': touched.password && errors.password }"
                 placeholder="Mínimo 6 caracteres"
                 autocomplete="new-password"
               />
-              <small v-if="touched.password && errors.password" class="msg error">{{ errors.password }}</small>
             </div>
           </div>
 
@@ -70,14 +58,11 @@
               <label>Confirmar contraseña</label>
               <input
                 v-model="form.confirm"
-                @blur="touched.confirm = true"
                 type="password"
                 class="input"
-                :class="{ 'is-error': touched.confirm && errors.confirm }"
                 placeholder="Repite tu contraseña"
                 autocomplete="new-password"
               />
-              <small v-if="touched.confirm && errors.confirm" class="msg error">{{ errors.confirm }}</small>
             </div>
             <div class="field half"></div>
           </div>
@@ -100,57 +85,29 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref } from 'vue'
 import PublicLayout from '../../layouts/PublicLayout.vue'
-import { registerPatient } from '../../services/auth.service'
 
 const DEMO = import.meta.env.VITE_DEMO === '1'
 
 type Form = { nombre: string; apellido: string; email: string; password: string; confirm: string }
-
 const form = reactive<Form>({ nombre: '', apellido: '', email: '', password: '', confirm: '' })
 
-const touched = reactive<Record<keyof Form, boolean>>({
-  nombre: false, apellido: false, email: false, password: false, confirm: false
-})
-
-const errors = reactive<Record<keyof Form, string>>({
-  nombre: '', apellido: '', email: '', password: '', confirm: ''
-})
-
+// Estados de UI (sin lógica de validación ni servicios)
 const submitting = ref(false)
 const serverError = ref('')
 const okMsg = ref('')
 
-const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-function validate () {
-  errors.nombre = form.nombre.length < 2 ? 'Ingresa tu nombre (mín. 2).' : ''
-  errors.apellido = form.apellido.length < 2 ? 'Ingresa tu apellido (mín. 2).' : ''
-  errors.email = emailRe.test(form.email) ? '' : 'Correo electrónico inválido.'
-  errors.password = form.password.length < 6 ? 'La contraseña debe tener al menos 6 caracteres.' : ''
-  errors.confirm = form.confirm !== form.password ? 'Las contraseñas no coinciden.' : ''
-}
-watch(form, validate, { deep: true, immediate: true })
-
+/** TODO: conectar con Firebase (createUser + perfil Paciente) */
 async function onSubmit () {
-  Object.keys(touched).forEach(k => (touched[k as keyof Form] = true))
-  validate()
-  if (Object.values(errors).some(e => e)) return
-
+  submitting.value = true
   serverError.value = ''
   okMsg.value = ''
-  submitting.value = true
-
   try {
-    await registerPatient({
-      nombre: form.nombre,
-      apellido: form.apellido,
-      email: form.email,
-      password: form.password
-    })
-    okMsg.value = 'Cuenta creada con éxito.'
+    // Aquí luego llamarás a tu servicio real de registro
+    okMsg.value = 'Formulario enviado (pendiente de integración).'
   } catch (e: any) {
-    serverError.value = e?.message || 'No se pudo crear la cuenta.'
+    serverError.value = e?.message || 'No se pudo crear la cuenta (simulado).'
   } finally {
     submitting.value = false
   }
@@ -246,10 +203,6 @@ label {
 .input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(14,165,233,.18);
-}
-.input.is-error {
-  border-color: #ef4444;
-  box-shadow: 0 0 0 3px rgba(239,68,68,.12);
 }
 
 .msg {

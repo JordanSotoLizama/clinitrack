@@ -1,15 +1,26 @@
 <template>
   <PublicLayout>
-    <div class="login-bg"></div>
-    <section>
-      <h2>Ingresar</h2>
-      <form>
-        <input placeholder="Email" />
-        <input type="password" placeholder="Contraseña" />
-        <button type="button">Entrar</button>
-      </form>
-      <p>¿No tienes cuenta? <router-link to="/registro">Regístrate</router-link></p>
-    </section>
+    <!-- wrapper local en vez de body{} -->
+    <div class="login-page">
+      <div class="login-bg"></div>
+
+      <section>
+        <h2>Ingresar</h2>
+
+        <!-- sin lógica aún: solo evitamos recargar la página -->
+        <form @submit.prevent>
+          <label class="sr-only" for="email">Email</label>
+          <input id="email" name="email" placeholder="Email" />
+
+          <label class="sr-only" for="password">Contraseña</label>
+          <input id="password" name="password" type="password" placeholder="Contraseña" />
+
+          <button type="submit">Entrar</button>
+        </form>
+
+        <p>¿No tienes cuenta? <router-link to="/registro">Regístrate</router-link></p>
+      </section>
+    </div>
   </PublicLayout>
 </template>
 
@@ -17,8 +28,9 @@
 import PublicLayout from '../../layouts/PublicLayout.vue'
 </script>
 
-<style>
-body {
+<style scoped>
+/* reemplaza el antiguo body{} por un contenedor local */
+.login-page {
   min-height: 100vh;
   margin: 0;
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
@@ -27,14 +39,13 @@ body {
   position: relative;
 }
 
-/* Fondo con logo CliniTrack centrado y a pantalla completa */
+/* Fondo con logo centrado */
 .login-bg {
   position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
+  inset: 0;
   z-index: -1;
   background: url('/clinitrack-logo.png') no-repeat center center;
-  background-size: 2000px auto;
+  background-size: 1200px auto; /* antes era 2000px/auto; ajusta si lo quieres más grande/pequeño */
   opacity: 0.10;
   pointer-events: none;
 }
@@ -72,10 +83,9 @@ input {
   border-radius: 8px;
   font-size: 1rem;
   outline: none;
-  transition: border 0.2s;
+  transition: border 0.2s, background 0.2s;
   background: #fafbfc;
 }
-
 input:focus {
   border-color: #1976d2;
   background: #fff;
@@ -93,10 +103,7 @@ button {
   transition: background 0.2s;
   margin-top: 0.5rem;
 }
-
-button:hover {
-  background: #1565c0;
-}
+button:hover { background: #1565c0; }
 
 p {
   margin-top: 1.5rem;
@@ -104,15 +111,12 @@ p {
   color: #444;
 }
 
-a {
-  color: #1976d2;
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
+a { color: #1976d2; text-decoration: none; font-weight: 500; }
+a:hover { color: #0d47a1; text-decoration: underline; }
 
-a:hover {
-  color: #0d47a1;
-  text-decoration: underline;
+/* util para accesibilidad (ocultar label visualmente, pero disponible a screen readers) */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); border: 0;
 }
 </style>
