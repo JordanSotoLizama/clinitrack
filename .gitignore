@@ -11,3 +11,6 @@ dist/
 # Sistema operativo
 .DS_Store
 Thumbs.db
+
+# config local de VSCode
+.vscode/*
