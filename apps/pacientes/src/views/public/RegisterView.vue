@@ -1,4 +1,3 @@
-<!-- apps/pacientes/src/views/paciente/RegisterView.vue -->
 <template>
   <PublicLayout>
     <section class="page">
@@ -6,80 +5,66 @@
         <h1 class="title">Registro</h1>
         <p v-if="DEMO" class="demo">Modo demo: se simula la creación de la cuenta.</p>
 
+        <!-- UI-only: sin validaciones reales ni servicios -->
         <form @submit.prevent="onSubmit" novalidate class="form">
-          <!-- Nombre -->
-          <div class="field">
-            <label>Nombre</label>
-            <input
-              v-model.trim="form.nombre"
-              @blur="touched.nombre = true"
-              type="text"
-              class="input"
-              :class="{ 'is-error': touched.nombre && errors.nombre }"
-              placeholder="Ej: Camilo"
-              autocomplete="given-name"
-            />
-            <small v-if="touched.nombre && errors.nombre" class="msg error">{{ errors.nombre }}</small>
+          <div class="row">
+            <div class="field half">
+              <label>Nombre</label>
+              <input
+                v-model.trim="form.nombre"
+                type="text"
+                class="input"
+                placeholder="Ej: Camilo"
+                autocomplete="given-name"
+              />
+            </div>
+            <div class="field half">
+              <label>Apellido</label>
+              <input
+                v-model.trim="form.apellido"
+                type="text"
+                class="input"
+                placeholder="Ej: Bravo"
+                autocomplete="family-name"
+              />
+            </div>
           </div>
 
-          <!-- Apellido -->
-          <div class="field">
-            <label>Apellido</label>
-            <input
-              v-model.trim="form.apellido"
-              @blur="touched.apellido = true"
-              type="text"
-              class="input"
-              :class="{ 'is-error': touched.apellido && errors.apellido }"
-              placeholder="Ej: Bravo"
-              autocomplete="family-name"
-            />
-            <small v-if="touched.apellido && errors.apellido" class="msg error">{{ errors.apellido }}</small>
+          <div class="row">
+            <div class="field half">
+              <label>Email</label>
+              <input
+                v-model.trim="form.email"
+                type="email"
+                class="input"
+                placeholder="tu@correo.com"
+                autocomplete="email"
+              />
+            </div>
+            <div class="field half">
+              <label>Contraseña</label>
+              <input
+                v-model="form.password"
+                type="password"
+                class="input"
+                placeholder="Mínimo 6 caracteres"
+                autocomplete="new-password"
+              />
+            </div>
           </div>
 
-          <!-- Email -->
-          <div class="field">
-            <label>Email</label>
-            <input
-              v-model.trim="form.email"
-              @blur="touched.email = true"
-              type="email"
-              class="input"
-              :class="{ 'is-error': touched.email && errors.email }"
-              placeholder="tu@correo.com"
-              autocomplete="email"
-            />
-            <small v-if="touched.email && errors.email" class="msg error">{{ errors.email }}</small>
-          </div>
-
-          <!-- Contraseña -->
-          <div class="field">
-            <label>Contraseña</label>
-            <input
-              v-model="form.password"
-              @blur="touched.password = true"
-              type="password"
-              class="input"
-              :class="{ 'is-error': touched.password && errors.password }"
-              placeholder="Mínimo 6 caracteres"
-              autocomplete="new-password"
-            />
-            <small v-if="touched.password && errors.password" class="msg error">{{ errors.password }}</small>
-          </div>
-
-          <!-- Confirmar -->
-          <div class="field">
-            <label>Confirmar contraseña</label>
-            <input
-              v-model="form.confirm"
-              @blur="touched.confirm = true"
-              type="password"
-              class="input"
-              :class="{ 'is-error': touched.confirm && errors.confirm }"
-              placeholder="Repite tu contraseña"
-              autocomplete="new-password"
-            />
-            <small v-if="touched.confirm && errors.confirm" class="msg error">{{ errors.confirm }}</small>
+          <div class="row">
+            <div class="field half">
+              <label>Confirmar contraseña</label>
+              <input
+                v-model="form.confirm"
+                type="password"
+                class="input"
+                placeholder="Repite tu contraseña"
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="field half"></div>
           </div>
 
           <button type="submit" class="btn" :disabled="submitting">
@@ -100,57 +85,29 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { reactive, ref } from 'vue'
 import PublicLayout from '../../layouts/PublicLayout.vue'
-import { registerPatient } from '../../services/auth.service'
 
 const DEMO = import.meta.env.VITE_DEMO === '1'
 
 type Form = { nombre: string; apellido: string; email: string; password: string; confirm: string }
-
 const form = reactive<Form>({ nombre: '', apellido: '', email: '', password: '', confirm: '' })
 
-const touched = reactive<Record<keyof Form, boolean>>({
-  nombre: false, apellido: false, email: false, password: false, confirm: false
-})
-
-const errors = reactive<Record<keyof Form, string>>({
-  nombre: '', apellido: '', email: '', password: '', confirm: ''
-})
-
+// Estados de UI (sin lógica de validación ni servicios)
 const submitting = ref(false)
 const serverError = ref('')
 const okMsg = ref('')
 
-const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/
-function validate () {
-  errors.nombre = form.nombre.length < 2 ? 'Ingresa tu nombre (mín. 2).' : ''
-  errors.apellido = form.apellido.length < 2 ? 'Ingresa tu apellido (mín. 2).' : ''
-  errors.email = emailRe.test(form.email) ? '' : 'Correo electrónico inválido.'
-  errors.password = form.password.length < 6 ? 'La contraseña debe tener al menos 6 caracteres.' : ''
-  errors.confirm = form.confirm !== form.password ? 'Las contraseñas no coinciden.' : ''
-}
-watch(form, validate, { deep: true, immediate: true })
-
+/** TODO: conectar con Firebase (createUser + perfil Paciente) */
 async function onSubmit () {
-  Object.keys(touched).forEach(k => (touched[k as keyof Form] = true))
-  validate()
-  if (Object.values(errors).some(e => e)) return
-
+  submitting.value = true
   serverError.value = ''
   okMsg.value = ''
-  submitting.value = true
-
   try {
-    await registerPatient({
-      nombre: form.nombre,
-      apellido: form.apellido,
-      email: form.email,
-      password: form.password
-    })
-    okMsg.value = 'Cuenta creada con éxito.'
+    // Aquí luego llamarás a tu servicio real de registro
+    okMsg.value = 'Formulario enviado (pendiente de integración).'
   } catch (e: any) {
-    serverError.value = e?.message || 'No se pudo crear la cuenta.'
+    serverError.value = e?.message || 'No se pudo crear la cuenta (simulado).'
   } finally {
     submitting.value = false
   }
@@ -158,81 +115,106 @@ async function onSubmit () {
 </script>
 
 <style scoped>
-/* Paleta CliniTrack: azul/verde suave */
 .page {
-  --primary: #0ea5e9;   /* azul cielo */
-  --secondary: #10b981; /* verde esmeralda */
+  --primary: #0ea5e9;
+  --secondary: #10b981;
   --text: #0f172a;
   --muted: #64748b;
   background: linear-gradient(180deg, #f0f9ff 0%, #ecfeff 100%);
   min-height: 100dvh;
-  display: grid;
-  place-items: center;
-  padding: 2rem 1rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 2rem 0;
+  width: 100vw;    
+  max-width: 100vw;
+  box-sizing: border-box;
 }
 
 .card {
   width: 100%;
-  max-width: 420px;
+  max-width: 700px;
   background: #ffffff;
   border: 1px solid #e5e7eb;
-  border-radius: 16px;
-  padding: 1.25rem;
+  border-radius: 20px;
+  padding: 2rem 2.5rem;
   box-shadow: 0 12px 30px rgba(2, 6, 23, 0.06);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .title {
-  font-size: 1.6rem;
+  font-size: 2rem;
   font-weight: 700;
   color: var(--text);
-  margin: 0 0 .75rem 0;
+  margin: 0 0 1.2rem 0;
 }
 
 .demo {
-  font-size: .9rem;
+  font-size: 1rem;
   color: var(--muted);
-  margin: -0.25rem 0 .75rem 0;
+  margin: -0.25rem 0 1rem 0;
 }
 
-.form { margin-top: .25rem; }
+.form {
+  margin-top: .25rem;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+}
 
-.field { margin-bottom: .9rem; }
+.row {
+  display: flex;
+  gap: 1.2rem;
+  width: 100%;
+}
+
+.half {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.field {
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
 
 label {
   display: block;
-  font-size: .9rem;
+  font-size: 1rem;
   color: var(--text);
   margin-bottom: .35rem;
+  font-weight: 500;
 }
 
 .input {
   width: 100%;
-  padding: .65rem .8rem;
+  padding: .85rem 1rem;
   border: 1px solid #d1d5db;
   border-radius: 10px;
   outline: none;
   transition: border-color .15s, box-shadow .15s, background .15s;
   background: #fff;
+  font-size: 1.08rem;
 }
 .input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 3px rgba(14,165,233,.18);
 }
-.input.is-error {
-  border-color: #ef4444;
-  box-shadow: 0 0 0 3px rgba(239,68,68,.12);
-}
 
 .msg {
   display: block;
   margin-top: .35rem;
-  font-size: .85rem;
+  font-size: .95rem;
 }
 .msg.error { color: #b91c1c; }
 
 .btn {
   width: 100%;
-  padding: .7rem .9rem;
+  padding: 1rem 0;
   border: none;
   border-radius: 12px;
   font-weight: 700;
@@ -241,6 +223,7 @@ label {
   background: linear-gradient(135deg, var(--primary), var(--secondary));
   box-shadow: 0 8px 20px rgba(16,185,129,.25);
   transition: transform .05s ease, box-shadow .2s ease, opacity .2s ease;
+  font-size: 1.15rem;
 }
 .btn:hover { transform: translateY(-1px); }
 .btn:active { transform: translateY(0); }
@@ -248,10 +231,11 @@ label {
 
 .alert {
   text-align: center;
-  padding: .6rem .8rem;
+  padding: .7rem 1rem;
   border-radius: 10px;
-  margin-top: .8rem;
+  margin-top: 1rem;
   font-weight: 600;
+  font-size: 1rem;
 }
 .alert.error {
   color: #7f1d1d;
@@ -265,8 +249,8 @@ label {
 }
 
 .foot {
-  margin-top: .9rem;
-  font-size: .95rem;
+  margin-top: 1.2rem;
+  font-size: 1.05rem;
   color: var(--muted);
   text-align: center;
 }

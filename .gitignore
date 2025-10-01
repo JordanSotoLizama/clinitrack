@@ -18,8 +18,10 @@ logs/
 
 # SO / IDE
 .DS_Store
+Thumbs.db
+
+# config local de VSCode
 .vscode/
-*.local
 
 # env (no subas credenciales locales)
 **/.env
