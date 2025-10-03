@@ -36,6 +36,7 @@
         </form>
 
         <p>¿No tienes cuenta? <router-link to="/registro">Regístrate</router-link></p>
+        <RouterLink to="/recuperar" class="link">¿Olvidaste tu contraseña?</RouterLink>
       </section>
     </div>
   </PublicLayout>

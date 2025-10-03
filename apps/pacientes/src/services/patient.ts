@@ -1,5 +1,7 @@
+console.log('[patient] module loaded')
+
 import { auth, db } from './firebase'
-import { createUserWithEmailAndPassword, deleteUser } from 'firebase/auth'
+import { createUserWithEmailAndPassword, deleteUser, sendEmailVerification } from 'firebase/auth'
 import { doc, setDoc, serverTimestamp, deleteDoc } from 'firebase/firestore'
 import { isValidRut, normalizeRut } from './rut'
 
@@ -42,7 +44,11 @@ export async function registerPatientWithEmail(input: {
   prevision: Prevision
   isapre?: string
 }) {
+
   const email = input.email.trim().toLowerCase()
+
+  console.log('[register] start with', email)
+
   if (input.password.length < 6) throw new Error('La contraseña debe tener al menos 6 caracteres.')
   if (!isValidRut(input.rut)) throw new Error('RUT inválido.')
   if (input.prevision === 'Isapre' && !input.isapre) throw new Error('Selecciona tu Isapre.')
@@ -50,6 +56,10 @@ export async function registerPatientWithEmail(input: {
   // 1) Auth
   const cred = await createUserWithEmailAndPassword(auth, email, input.password)
   const uid = cred.user.uid
+
+   console.log('[register] user created uid=', uid)  // ⬅️ LOG #2
+
+
   const now = serverTimestamp()
   const rutKey = normalizeRut(input.rut)
 
@@ -83,8 +93,10 @@ export async function registerPatientWithEmail(input: {
 
   try {
     await setDoc(doc(db, 'patients', uid), patient, { merge: true })
+
+    console.log('[register] patients doc written')
+
     try {
-      await auth.currentUser?.getIdToken(true)
       await auth.currentUser?.getIdToken(true)
       await waitForPatientClaim()
     } catch (e) {
@@ -95,6 +107,16 @@ export async function registerPatientWithEmail(input: {
     try { await deleteDoc(doc(db, 'rutIndex', rutKey)) } catch {}
     try { await deleteUser(cred.user) } catch {}
     throw e
+  }
+
+  /** ——— Envío de verificación (registro) ——— */
+  try {
+    await sendEmailVerification(cred.user, {
+      url: `${window.location.origin}/login`, // o /app si prefieres
+    })
+    console.log('[register] sendEmailVerification ok → enviado a', email)
+  } catch (err: any) {
+    console.error('[register] ERROR sendEmailVerification:', err?.code, err?.message || err)
   }
 
   return cred.user

@@ -1,5 +1,5 @@
 import { auth } from './firebase'
-import { onAuthStateChanged, signInWithEmailAndPassword, type User, signOut } from 'firebase/auth'
+import { onAuthStateChanged, signInWithEmailAndPassword, type User, signOut, sendPasswordResetEmail } from 'firebase/auth'
 
 export function getCurrentUser(): Promise<User | null> {
   return new Promise(resolve => {
@@ -30,4 +30,19 @@ export async function loginWithEmail(email: string, password: string): Promise<U
   }
 
   return cred.user
+}
+
+/**
+ * Envía un correo de restablecimiento de contraseña.
+ * - email: se normaliza a minúsculas y trim.
+ * - url de retorno: te lleva al /login una vez completado el flujo.
+ */
+
+export async function requestPasswordReset(email: string) {
+  const e = email.trim().toLowerCase()
+  // idioma del correo (opcional)
+  try { auth.languageCode = 'es' } catch {}
+  await sendPasswordResetEmail(auth, e, {
+    url: `${window.location.origin}/login`,
+  })
 }

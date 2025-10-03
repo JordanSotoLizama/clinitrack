@@ -1,40 +1,27 @@
 <template>
-  <AppLayout>
-    <section style="padding:1rem 0">
-      <h2>Inicio Paciente</h2>
-      <p>Accesos rápidos (pronto).</p>
+  <section style="padding:1rem 0">
+    <h2>Inicio Paciente</h2>
+    <p>Accesos rápidos (pronto).</p>
 
-      <!-- Bloque pequeño para probar sesión -->
-      <div style="margin-top:1rem; display:flex; align-items:center; gap:.75rem">
-        <span>Sesión: <strong>{{ userEmail || '—' }}</strong></span>
-        <button class="btn" @click="onLogout" :disabled="leaving">
-          {{ leaving ? 'Saliendo…' : 'Cerrar sesión' }}
-        </button>
-      </div>
-    </section>
-  </AppLayout>
+    <div style="margin-top:1rem; display:flex; align-items:center; gap:.75rem">
+      <span>Sesión: <strong>{{ userEmail || '—' }}</strong></span>
+    </div>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import AppLayout from '../../layouts/AppLayout.vue'
+import { ref, onMounted } from 'vue'
+import { onAuthStateChanged } from 'firebase/auth'
 import { auth } from '@/services/firebase'
-import { logout } from '@/services/auth'
-import { useRouter } from 'vue-router'
 
-const router = useRouter()
-const userEmail = computed(() => auth.currentUser?.email || '')
-const leaving = ref(false)
+const userEmail = ref<string | null>(null)
 
-async function onLogout() {
-  leaving.value = true
-  try {
-    await logout()
-    router.push('/login')
-  } finally {
-    leaving.value = false
-  }
-}
+onMounted(() => {
+  onAuthStateChanged(auth, (u) => {
+    userEmail.value = u?.email ?? null
+  })
+})
+
 </script>
 
 <style scoped>

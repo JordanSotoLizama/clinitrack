@@ -166,8 +166,8 @@
 <script setup lang="ts">
 import { reactive, ref, computed } from 'vue'
 import PublicLayout from '../../layouts/PublicLayout.vue'
-import { registerPatientWithEmail } from '@/services/patient'
-import { formatRut } from '@/services/rut'   // solo para mantener el auto-formateo en el input
+import { registerPatientWithEmail } from '../../services/patient'
+import { formatRut } from '@/services/rut'   
 import { useRouter } from 'vue-router'
 const router = useRouter()
 
@@ -276,6 +276,7 @@ async function onSubmit () {
   okMsg.value = ''
 
   try {
+    console.log('[ui] submit register with', form.email)
     await registerPatientWithEmail({
       email: form.email,
       password: form.password,
@@ -290,7 +291,7 @@ async function onSubmit () {
 
     okMsg.value = 'Cuenta creada con éxito. 🎉'
     // TODO: en el siguiente paso redirigimos a /app o /perfil y montamos guard de sesión.
-    router.push('/home')
+    router.push('/app')
   } catch (e: any) {
     const code = e?.code || ''
     if (code === 'auth/email-already-in-use') {
