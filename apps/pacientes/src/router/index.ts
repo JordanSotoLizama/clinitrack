@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getCurrentUser } from '@/services/auth'
+import { getCurrentUser, logout } from '@/services/auth'
 import LandingView from '../views/public/LandingView.vue'
 import LoginView from '../views/public/LoginView.vue'
 import RegisterView from '../views/public/RegisterView.vue'
@@ -18,10 +18,29 @@ const router = createRouter({
   routes,
 })
 
+async function getRoleClaim(): Promise<string | null> {
+  const u = await getCurrentUser()
+  if (!u) return null
+  const tok = await u.getIdTokenResult()
+  return (tok.claims as any)?.role ?? null
+}
+
 router.beforeEach(async (to) => {
   const user = await getCurrentUser()
-  if (to.meta.requiresAuth && !user) return '/'
+
+  // Rutas privadas
+  if (to.meta.requiresAuth) {
+    if (!user) return '/'                      // tu decisión: landing
+    const role = await getRoleClaim()
+    if (role !== 'patient') {                  // <-- evita staff en app pacientes
+      await logout()
+      return '/login?msg=solo-pacientes'
+    }
+  }
+
+  // Rutas solo invitados
   if (to.meta.guestOnly && user) return '/home'
+
   return true
 })
 

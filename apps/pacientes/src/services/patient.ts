@@ -19,6 +19,18 @@ export interface PatientProfile {
   lastLoginAt: any
 }
 
+async function waitForPatientClaim(msTimeout = 8000): Promise<boolean> {
+  const start = Date.now()
+  while (Date.now() - start < msTimeout) {
+    const u = auth.currentUser
+    if (!u) break
+    const t = await u.getIdTokenResult(true)
+    if ((t.claims as any)?.role === 'patient') return true
+    await new Promise(r => setTimeout(r, 500))
+  }
+  return false
+}
+
 export async function registerPatientWithEmail(input: {
   email: string
   password: string
@@ -71,6 +83,13 @@ export async function registerPatientWithEmail(input: {
 
   try {
     await setDoc(doc(db, 'patients', uid), patient, { merge: true })
+    try {
+      await auth.currentUser?.getIdToken(true)
+      await auth.currentUser?.getIdToken(true)
+      await waitForPatientClaim()
+    } catch (e) {
+      console.warn('No se pudo refrescar el ID token:', e)
+    }
   } catch (e) {
     // rollback: liberar el índice y, opcional, borrar el usuario
     try { await deleteDoc(doc(db, 'rutIndex', rutKey)) } catch {}

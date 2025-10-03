@@ -17,6 +17,40 @@ async function assertIsAdmin(callerUid: string): Promise<void> {
   }
 }
 
+// Cuando se crea el documento del paciente => setear claim "patient"
+export const onPatientCreated = functions
+  .region('southamerica-east1') // <- fijamos región
+  .firestore
+  .document('patients/{uid}')
+  .onCreate(async (snap, ctx) => {
+    const uid = ctx.params.uid as string
+    try {
+      await admin.auth().setCustomUserClaims(uid, { role: 'patient' })
+      // opcional: marca cuándo se aplicó el claim
+      await snap.ref.set({
+        claimAppliedAt: admin.firestore.FieldValue.serverTimestamp()
+      }, { merge: true })
+      console.log(`Custom claim 'patient' aplicado a ${uid}`)
+    } catch (err) {
+      console.error('No se pudo setear claim patient:', err)
+    }
+  })
+
+// Si se borra el perfil del paciente, limpia el claim
+export const onPatientDeleted = functions
+  .region('southamerica-east1') // <- misma región
+  .firestore
+  .document('patients/{uid}')
+  .onDelete(async (_, ctx) => {
+    const uid = ctx.params.uid as string
+    try {
+      await admin.auth().setCustomUserClaims(uid, {}) // sin role
+      console.log(`Custom claim removido para ${uid}`)
+    } catch (err) {
+      console.error('No se pudo limpiar claim:', err)
+    }
+  })
+
 export const createStaffUser = functions
   .region(REGION)
   .https.onCall(
