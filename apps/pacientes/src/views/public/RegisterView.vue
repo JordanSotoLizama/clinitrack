@@ -146,7 +146,7 @@
             </div>
           </div>
 
-          <button type="submit" class="btn" :disabled="submitting || !puedeContinuar">
+          <button type="submit" class="btn" :disabled="submitting || !puedeContinuar" :title="!puedeContinuar ? disabledReason : ''">
             {{ submitting ? 'Creando…' : 'Crear cuenta' }}
           </button>
 
@@ -166,14 +166,46 @@
 <script setup lang="ts">
 import { reactive, ref, computed } from 'vue'
 import PublicLayout from '../../layouts/PublicLayout.vue'
+import { registerPatientWithEmail } from '@/services/patient'
+import { formatRut } from '@/services/rut'   // solo para mantener el auto-formateo en el input
+import { useRouter } from 'vue-router'
+const router = useRouter()
 
 const DEMO = import.meta.env.VITE_DEMO === '1'
 
 const isapres = [
-  'Banmédica','Isalud','Colmena','Consalud','CruzBlanca','Cruz del norte','Nueva MasVida','Fundación','Vida Tres','Esencial'
+  'Banmédica',
+  'Isalud',
+  'Colmena',
+  'Consalud',
+  'CruzBlanca',
+  'Cruz del norte',
+  'Nueva MasVida',
+  'Fundación',
+  'Vida Tres',
+  'Esencial'
 ]
 
-// Modelo UI-only
+const disabledReason = computed(() => {
+  const faltantes: string[] = []
+  if (!form.nombres) faltantes.push('nombres')
+  if (!form.apellidoPaterno) faltantes.push('apellido paterno')
+  if (!form.apellidoMaterno) faltantes.push('apellido materno')
+  if (!form.rut) faltantes.push('RUT')
+  if (!form.fechaNacimiento) faltantes.push('fecha de nacimiento')
+  if (!form.email) faltantes.push('email')
+  if (form.password.length < 6) faltantes.push('contraseña (mín. 6)')
+  if (form.password !== form.confirm) faltantes.push('confirmar contraseña')
+  if (!form.prevision) faltantes.push('previsión')
+  if (form.prevision === 'Isapre' && !form.isapre) faltantes.push('isapre')
+  if (!form.aceptaTerminos) faltantes.push('aceptar Términos')
+  if (!form.autorizaDatos) faltantes.push('autorizar datos de salud')
+
+  if (!faltantes.length) return ''
+  return 'Completa: ' + faltantes.join(', ') + '.'
+})
+
+// Modelo del formulario (mismo que ya tienes en el template)
 type Form = {
   nombres: string
   apellidoPaterno: string
@@ -194,7 +226,7 @@ const form = reactive<Form>({
   prevision: '', isapre: '', aceptaTerminos: false, autorizaDatos: false
 })
 
-// Estados de UI (sin lógica de validación ni servicios)
+// Estados UI
 const submitting = ref(false)
 const serverError = ref('')
 const okMsg = ref('')
@@ -202,37 +234,22 @@ const okMsg = ref('')
 // Email a minúsculas al salir
 function emailToLower() { form.email = form.email.trim().toLowerCase() }
 
-// ---------- RUT auto-formateado en vivo ----------
-function cleanRut(raw: string) {
-  const s = raw.replace(/[^0-9kK]/g, '').toUpperCase()
-  return { cuerpo: s.slice(0, -1), dv: s.slice(-1) }
-}
-function withThousands(n: string) {
-  return n.replace(/\B(?=(\d{3})+(?!\d))/g, '.')
-}
-function formatRut(raw: string) {
-  const { cuerpo, dv } = cleanRut(raw)
-  if (!cuerpo) return dv ? dv : ''
-  return dv ? `${withThousands(cuerpo)}-${dv}` : withThousands(cuerpo)
-}
+// ---- RUT: mantener tu auto-formateo en vivo ----
 function onRutInput(e: Event) {
   const el = e.target as HTMLInputElement
   const start = el.selectionStart ?? el.value.length
   const beforeLen = el.value.length
-
   form.rut = formatRut(el.value)
-
   const afterLen = form.rut.length
   const newPos = Math.max(0, start + (afterLen - beforeLen))
   requestAnimationFrame(() => el.setSelectionRange(newPos, newPos))
 }
 function formatRutFinal() { form.rut = formatRut(form.rut) }
-// ---------- FIN RUT ----------
+// -----------------------------------------------
 
-// Fecha máxima (≥ 18 años)
+// Fecha máxima (≥ 18)
 const maxBirthDate = computed(() => {
-  const d = new Date()
-  d.setFullYear(d.getFullYear() - 18)
+  const d = new Date(); d.setFullYear(d.getFullYear() - 18)
   const mm = String(d.getMonth() + 1).padStart(2, '0')
   const dd = String(d.getDate()).padStart(2, '0')
   return `${d.getFullYear()}-${mm}-${dd}`
@@ -247,15 +264,46 @@ const puedeContinuar = computed(() => {
   return okCred && okIdent && okPrev && okConsent
 })
 
-/** TODO (Tarea 3–4): conectar con Firebase (createUser + perfil Paciente) */
+// Submit real (Auth + rutIndex + patients)
 async function onSubmit () {
+  if (DEMO) {
+    okMsg.value = 'Vista demo: se simulará el registro.'
+    return
+  }
+
   submitting.value = true
   serverError.value = ''
   okMsg.value = ''
+
   try {
-    okMsg.value = 'Vista OK. En el siguiente paso conectaremos validaciones y guardado real.'
+    await registerPatientWithEmail({
+      email: form.email,
+      password: form.password,
+      nombres: form.nombres,
+      apellidoPaterno: form.apellidoPaterno,
+      apellidoMaterno: form.apellidoMaterno,
+      rut: form.rut,                       // el servicio valida + normaliza
+      fechaNacimiento: form.fechaNacimiento,
+      prevision: form.prevision as any,
+      isapre: form.prevision === 'Isapre' ? form.isapre : undefined,
+    })
+
+    okMsg.value = 'Cuenta creada con éxito. 🎉'
+    // TODO: en el siguiente paso redirigimos a /app o /perfil y montamos guard de sesión.
+    router.push('/home')
   } catch (e: any) {
-    serverError.value = e?.message || 'No se pudo crear la cuenta (simulado).'
+    const code = e?.code || ''
+    if (code === 'auth/email-already-in-use') {
+      serverError.value = 'El correo ya está en uso.'
+    } else if (code === 'auth/invalid-email') {
+      serverError.value = 'Correo inválido.'
+    } else if (e?.message?.includes('RUT ya registrado')) {
+      serverError.value = 'RUT ya registrado en el sistema.'
+    } else if (e?.message?.includes('RUT inválido')) {
+      serverError.value = 'RUT inválido. Revisa el dígito verificador.'
+    } else {
+      serverError.value = e?.message || 'No se pudo crear la cuenta.'
+    }
   } finally {
     submitting.value = false
   }
