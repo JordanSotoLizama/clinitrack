@@ -4,12 +4,30 @@ import LandingView from '../views/public/LandingView.vue'
 import LoginView from '../views/public/LoginView.vue'
 import RegisterView from '../views/public/RegisterView.vue'
 import AppHomeView from '../views/paciente/AppHomeView.vue'
+import AppLayout from '@/layouts/AppLayout.vue'
+import AppAppointmentsView from '../views/paciente/AppAppointmentsView.vue'
+import AppResultsView from '../views/paciente/AppResultsView.vue'
+import AppProfileView from '../views/paciente/AppProfileView.vue'
 
-const routes = [
+export const routes = [
+  // públicas (opcional)
   { path: '/', component: LandingView, meta: { guestOnly: true } },
   { path: '/login', component: LoginView, meta: { guestOnly: true } },
   { path: '/registro', component: RegisterView, meta: { guestOnly: true } },
-  { path: '/home', component: AppHomeView, meta: { requiresAuth: true } }, // protegida
+
+  // área paciente
+  {
+    path: '/app',
+    component: AppLayout,
+    meta: { requiresAuth: true },
+    children: [
+      { path: '',            name: 'patient-home',        component: AppHomeView },
+      { path: 'citas',       name: 'patient-appointments',component: AppAppointmentsView },
+      { path: 'resultados',  name: 'patient-results',     component: AppResultsView },
+      { path: 'perfil',      name: 'patient-profile',     component: AppProfileView },
+    ],
+  },
+
   { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
@@ -39,7 +57,10 @@ router.beforeEach(async (to) => {
   }
 
   // Rutas solo invitados
-  if (to.meta.guestOnly && user) return '/home'
+   if (to.meta.guestOnly && user) {
+    const role = await getRoleClaim?.()
+    if (role === 'patient') return '/app'
+  }
 
   return true
 })
