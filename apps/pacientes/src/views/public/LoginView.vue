@@ -7,15 +7,32 @@
       <section>
         <h2>Ingresar</h2>
 
-        <!-- sin lógica aún: solo evitamos recargar la página -->
-        <form @submit.prevent>
+        <form @submit.prevent="onSubmit" novalidate>
           <label class="sr-only" for="email">Email</label>
-          <input id="email" name="email" placeholder="Email" />
+          <input
+            id="email"
+            name="email"
+            placeholder="Email"
+            type="email"
+            autocomplete="email"
+            v-model.trim="form.email"
+          />
 
           <label class="sr-only" for="password">Contraseña</label>
-          <input id="password" name="password" type="password" placeholder="Contraseña" />
+          <input
+            id="password"
+            name="password"
+            type="password"
+            placeholder="Contraseña"
+            autocomplete="current-password"
+            v-model="form.password"
+          />
 
-          <button type="submit">Entrar</button>
+          <button type="submit" :disabled="loading">
+            {{ loading ? 'Ingresando…' : 'Ingresar' }}
+          </button>
+
+          <p v-if="errorMsg" class="alert error">{{ errorMsg }}</p>
         </form>
 
         <p>¿No tienes cuenta? <router-link to="/registro">Regístrate</router-link></p>
@@ -25,7 +42,83 @@
 </template>
 
 <script setup lang="ts">
+import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { loginWithEmail } from '@/services/auth'
 import PublicLayout from '../../layouts/PublicLayout.vue'
+
+const router = useRouter()
+
+const form = reactive({
+  email: '',
+  password: '',
+})
+
+const loading = ref(false)
+const errorMsg = ref('')
+
+function isValidEmail (v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+}
+
+function mapAuthError (code: string): string {
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'Correo inválido.'
+    case 'auth/missing-password':
+    case 'auth/weak-password':
+      return 'Contraseña inválida.'
+    case 'auth/user-disabled':
+      return 'Tu cuenta está deshabilitada.'
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Correo o contraseña incorrectos.'
+    case 'auth/too-many-requests':
+      return 'Demasiados intentos. Intenta más tarde.'
+    default:
+      return 'No se pudo iniciar sesión. Intenta nuevamente.'
+  }
+}
+
+async function onSubmit () {
+  errorMsg.value = ''
+
+  // normaliza email
+  const email = form.email.trim().toLowerCase()
+  const password = form.password
+
+  // Validaciones rápidas antes de llamar a Firebase
+  if (!isValidEmail(email)) {
+    errorMsg.value = 'Correo inválido.'
+    return
+  }
+  if (!password || password.length < 6) {
+    errorMsg.value = 'La contraseña debe tener al menos 6 caracteres.'
+    return
+  }
+
+  loading.value = true
+  try {
+    await loginWithEmail(email, password)
+    // Si luego filtras por claims, aquí puedes forzar refresh:
+    // await auth.currentUser?.getIdToken(true)
+    await router.push('/home')
+  } catch (e: any) {
+    console.error('login error:', e)
+    const code = e?.code || ''
+    const msg = String(e?.message || '')
+
+    // Si en el backend detectas staff y devuelves un mensaje, mantenlo:
+    if (msg.includes('pertenece al staff')) {
+      errorMsg.value = 'Esta cuenta pertenece al staff. Usa el portal de staff.'
+    } else {
+      errorMsg.value = mapAuthError(code)
+    }
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <style scoped>
@@ -45,7 +138,7 @@ import PublicLayout from '../../layouts/PublicLayout.vue'
   inset: 0;
   z-index: -1;
   background: url('/clinitrack-logo.png') no-repeat center center;
-  background-size: 1200px auto; /* antes era 2000px/auto; ajusta si lo quieres más grande/pequeño */
+  background-size: 1200px auto;
   opacity: 0.10;
   pointer-events: none;
 }

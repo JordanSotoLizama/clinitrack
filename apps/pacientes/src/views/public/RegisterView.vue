@@ -7,40 +7,85 @@
 
         <!-- UI-only: sin validaciones reales ni servicios -->
         <form @submit.prevent="onSubmit" novalidate class="form">
+          <!-- Grupo B: Identificación legal -->
           <div class="row">
             <div class="field half">
-              <label>Nombre</label>
+              <label>Nombres</label>
               <input
-                v-model.trim="form.nombre"
+                v-model.trim="form.nombres"
                 type="text"
                 class="input"
-                placeholder="Ej: Camilo"
+                placeholder="Ej: Camilo Andrés"
                 autocomplete="given-name"
               />
             </div>
+
             <div class="field half">
-              <label>Apellido</label>
+              <label>RUT</label>
               <input
-                v-model.trim="form.apellido"
+                :value="form.rut"
+                @input="onRutInput"
+                @blur="formatRutFinal"
+                inputmode="numeric"
+                class="input"
+                placeholder="12.345.678-9"
+              />
+              <span class="msg">Se formatea automáticamente: 12.345.678-9</span>
+            </div>
+          </div>
+
+          <div class="row">
+
+            <div class="field half">
+              <label>Apellido paterno</label>
+              <input
+                v-model.trim="form.apellidoPaterno"
                 type="text"
                 class="input"
                 placeholder="Ej: Bravo"
                 autocomplete="family-name"
               />
             </div>
+
+            <div class="field half">
+              <label>Apellido materno</label>
+              <input
+                v-model.trim="form.apellidoMaterno"
+                type="text"
+                class="input"
+                placeholder="Ej: Soto"
+                autocomplete="additional-name"
+              />
+            </div>
           </div>
 
           <div class="row">
+
             <div class="field half">
               <label>Email</label>
               <input
                 v-model.trim="form.email"
+                @blur="emailToLower"
                 type="email"
                 class="input"
                 placeholder="tu@correo.com"
                 autocomplete="email"
               />
             </div>
+
+            <div class="field half">
+              <label>Fecha de nacimiento</label>
+              <input
+                v-model="form.fechaNacimiento"
+                type="date"
+                class="input"
+                :max="maxBirthDate"
+              />
+              <span class="msg">Debes ser mayor de 18 años.</span>
+            </div>
+          </div>
+
+          <div class="row">
             <div class="field half">
               <label>Contraseña</label>
               <input
@@ -51,9 +96,7 @@
                 autocomplete="new-password"
               />
             </div>
-          </div>
 
-          <div class="row">
             <div class="field half">
               <label>Confirmar contraseña</label>
               <input
@@ -64,10 +107,46 @@
                 autocomplete="new-password"
               />
             </div>
-            <div class="field half"></div>
           </div>
 
-          <button type="submit" class="btn" :disabled="submitting">
+          <!-- Grupo C: Cobertura de salud -->
+          <div class="row">
+            <div class="field half">
+              <label>Previsión</label>
+              <select v-model="form.prevision" class="input">
+                <option value="" disabled>Selecciona una opción</option>
+                <option value="Fonasa">Fonasa</option>
+                <option value="Isapre">Isapre</option>
+                <option value="Particular">Particular</option>
+              </select>
+            </div>
+
+            <div class="field half" v-if="form.prevision === 'Isapre'">
+              <label>Isapre</label>
+              <select v-model="form.isapre" class="input">
+                <option value="" disabled>Selecciona tu Isapre</option>
+                <option v-for="op in isapres" :key="op" :value="op">{{ op }}</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Grupo D: Consentimientos -->
+          <div class="row">
+            <div class="field half">
+              <label class="flex items-start" style="gap:.6rem;">
+                <input type="checkbox" v-model="form.aceptaTerminos" />
+                <span>Acepto los <a href="#" class="underline">Términos</a> y la <a href="#" class="underline">Política de Privacidad</a>.</span>
+              </label>
+            </div>
+            <div class="field half">
+              <label class="flex items-start" style="gap:.6rem;">
+                <input type="checkbox" v-model="form.autorizaDatos" />
+                <span>Autorizo el tratamiento de mis datos de salud.</span>
+              </label>
+            </div>
+          </div>
+
+          <button type="submit" class="btn" :disabled="submitting || !puedeContinuar" :title="!puedeContinuar ? disabledReason : ''">
             {{ submitting ? 'Creando…' : 'Crear cuenta' }}
           </button>
 
@@ -85,29 +164,146 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { reactive, ref, computed } from 'vue'
 import PublicLayout from '../../layouts/PublicLayout.vue'
+import { registerPatientWithEmail } from '@/services/patient'
+import { formatRut } from '@/services/rut'   // solo para mantener el auto-formateo en el input
+import { useRouter } from 'vue-router'
+const router = useRouter()
 
 const DEMO = import.meta.env.VITE_DEMO === '1'
 
-type Form = { nombre: string; apellido: string; email: string; password: string; confirm: string }
-const form = reactive<Form>({ nombre: '', apellido: '', email: '', password: '', confirm: '' })
+const isapres = [
+  'Banmédica',
+  'Isalud',
+  'Colmena',
+  'Consalud',
+  'CruzBlanca',
+  'Cruz del norte',
+  'Nueva MasVida',
+  'Fundación',
+  'Vida Tres',
+  'Esencial'
+]
 
-// Estados de UI (sin lógica de validación ni servicios)
+const disabledReason = computed(() => {
+  const faltantes: string[] = []
+  if (!form.nombres) faltantes.push('nombres')
+  if (!form.apellidoPaterno) faltantes.push('apellido paterno')
+  if (!form.apellidoMaterno) faltantes.push('apellido materno')
+  if (!form.rut) faltantes.push('RUT')
+  if (!form.fechaNacimiento) faltantes.push('fecha de nacimiento')
+  if (!form.email) faltantes.push('email')
+  if (form.password.length < 6) faltantes.push('contraseña (mín. 6)')
+  if (form.password !== form.confirm) faltantes.push('confirmar contraseña')
+  if (!form.prevision) faltantes.push('previsión')
+  if (form.prevision === 'Isapre' && !form.isapre) faltantes.push('isapre')
+  if (!form.aceptaTerminos) faltantes.push('aceptar Términos')
+  if (!form.autorizaDatos) faltantes.push('autorizar datos de salud')
+
+  if (!faltantes.length) return ''
+  return 'Completa: ' + faltantes.join(', ') + '.'
+})
+
+// Modelo del formulario (mismo que ya tienes en el template)
+type Form = {
+  nombres: string
+  apellidoPaterno: string
+  apellidoMaterno: string
+  rut: string
+  fechaNacimiento: string
+  email: string
+  password: string
+  confirm: string
+  prevision: '' | 'Fonasa' | 'Isapre' | 'Particular'
+  isapre: string
+  aceptaTerminos: boolean
+  autorizaDatos: boolean
+}
+const form = reactive<Form>({
+  nombres: '', apellidoPaterno: '', apellidoMaterno: '', rut: '',
+  fechaNacimiento: '', email: '', password: '', confirm: '',
+  prevision: '', isapre: '', aceptaTerminos: false, autorizaDatos: false
+})
+
+// Estados UI
 const submitting = ref(false)
 const serverError = ref('')
 const okMsg = ref('')
 
-/** TODO: conectar con Firebase (createUser + perfil Paciente) */
+// Email a minúsculas al salir
+function emailToLower() { form.email = form.email.trim().toLowerCase() }
+
+// ---- RUT: mantener tu auto-formateo en vivo ----
+function onRutInput(e: Event) {
+  const el = e.target as HTMLInputElement
+  const start = el.selectionStart ?? el.value.length
+  const beforeLen = el.value.length
+  form.rut = formatRut(el.value)
+  const afterLen = form.rut.length
+  const newPos = Math.max(0, start + (afterLen - beforeLen))
+  requestAnimationFrame(() => el.setSelectionRange(newPos, newPos))
+}
+function formatRutFinal() { form.rut = formatRut(form.rut) }
+// -----------------------------------------------
+
+// Fecha máxima (≥ 18)
+const maxBirthDate = computed(() => {
+  const d = new Date(); d.setFullYear(d.getFullYear() - 18)
+  const mm = String(d.getMonth() + 1).padStart(2, '0')
+  const dd = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${mm}-${dd}`
+})
+
+// Habilitar botón (chequeos mínimos visuales)
+const puedeContinuar = computed(() => {
+  const okCred = form.email && form.password.length >= 6 && form.password === form.confirm
+  const okIdent = form.nombres && form.apellidoPaterno && form.apellidoMaterno && form.rut && form.fechaNacimiento
+  const okPrev = form.prevision && (form.prevision !== 'Isapre' || !!form.isapre)
+  const okConsent = form.aceptaTerminos && form.autorizaDatos
+  return okCred && okIdent && okPrev && okConsent
+})
+
+// Submit real (Auth + rutIndex + patients)
 async function onSubmit () {
+  if (DEMO) {
+    okMsg.value = 'Vista demo: se simulará el registro.'
+    return
+  }
+
   submitting.value = true
   serverError.value = ''
   okMsg.value = ''
+
   try {
-    // Aquí luego llamarás a tu servicio real de registro
-    okMsg.value = 'Formulario enviado (pendiente de integración).'
+    await registerPatientWithEmail({
+      email: form.email,
+      password: form.password,
+      nombres: form.nombres,
+      apellidoPaterno: form.apellidoPaterno,
+      apellidoMaterno: form.apellidoMaterno,
+      rut: form.rut,                       // el servicio valida + normaliza
+      fechaNacimiento: form.fechaNacimiento,
+      prevision: form.prevision as any,
+      isapre: form.prevision === 'Isapre' ? form.isapre : undefined,
+    })
+
+    okMsg.value = 'Cuenta creada con éxito. 🎉'
+    // TODO: en el siguiente paso redirigimos a /app o /perfil y montamos guard de sesión.
+    router.push('/home')
   } catch (e: any) {
-    serverError.value = e?.message || 'No se pudo crear la cuenta (simulado).'
+    const code = e?.code || ''
+    if (code === 'auth/email-already-in-use') {
+      serverError.value = 'El correo ya está en uso.'
+    } else if (code === 'auth/invalid-email') {
+      serverError.value = 'Correo inválido.'
+    } else if (e?.message?.includes('RUT ya registrado')) {
+      serverError.value = 'RUT ya registrado en el sistema.'
+    } else if (e?.message?.includes('RUT inválido')) {
+      serverError.value = 'RUT inválido. Revisa el dígito verificador.'
+    } else {
+      serverError.value = e?.message || 'No se pudo crear la cuenta.'
+    }
   } finally {
     submitting.value = false
   }
@@ -115,6 +311,7 @@ async function onSubmit () {
 </script>
 
 <style scoped>
+/* Mantengo tu base */
 .page {
   --primary: #0ea5e9;
   --secondary: #10b981;
@@ -130,10 +327,9 @@ async function onSubmit () {
   max-width: 100vw;
   box-sizing: border-box;
 }
-
 .card {
   width: 100%;
-  max-width: 700px;
+  max-width: 700px; /* Si quieres aún más aire, puedes subirla a 760–820px */
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 20px;
@@ -143,55 +339,36 @@ async function onSubmit () {
   flex-direction: column;
   align-items: center;
 }
+.title { font-size: 2rem; font-weight: 700; color: var(--text); margin: 0 0 1.2rem 0; }
+.demo { font-size: 1rem; color: var(--muted); margin: -0.25rem 0 1rem 0; }
 
-.title {
-  font-size: 2rem;
-  font-weight: 700;
-  color: var(--text);
-  margin: 0 0 1.2rem 0;
-}
-
-.demo {
-  font-size: 1rem;
-  color: var(--muted);
-  margin: -0.25rem 0 1rem 0;
-}
-
+/* Contenedor del formulario */
 .form {
   margin-top: .25rem;
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 1.2rem;
+  gap: 2rem; /* más respiración vertical */
 }
 
-.row {
-  display: flex;
-  gap: 1.2rem;
-  width: 100%;
+/* FILAS EN GRID: 1 columna por defecto; 2 columnas en >=600px */
+.form .row {
+  display: grid !important;
+  grid-template-columns: 1fr;
+  gap: 1rem 1.2rem; /* fila / columna */
+  align-items: start;
+}
+@media (min-width: 600px) { /* antes: 768px (no se activaba dentro de 700px) */
+  .form .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
-.half {
-  flex: 1 1 0;
-  min-width: 0;
-}
+/* Campos */
+.form .field { width: 100%; min-width: 0; display: flex; flex-direction: column; }
 
-.field {
-  margin-bottom: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-label {
-  display: block;
-  font-size: 1rem;
-  color: var(--text);
-  margin-bottom: .35rem;
-  font-weight: 500;
-}
+label { display: block; font-size: 1rem; color: var(--text); margin-bottom: .45rem; font-weight: 500; }
 
 .input {
-  width: 100%;
+  width: 80%;
   padding: .85rem 1rem;
   border: 1px solid #d1d5db;
   border-radius: 10px;
@@ -200,18 +377,13 @@ label {
   background: #fff;
   font-size: 1.08rem;
 }
-.input:focus {
-  border-color: var(--primary);
-  box-shadow: 0 0 0 3px rgba(14,165,233,.18);
-}
+.input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(14,165,233,.18); }
 
-.msg {
-  display: block;
-  margin-top: .35rem;
-  font-size: .95rem;
-}
+/* Mensajitos bajo el input */
+.msg { display: block; margin-top: .35rem; font-size: .95rem; color: #64748b; }
 .msg.error { color: #b91c1c; }
 
+/* Botón y alerts (igual que tenías) */
 .btn {
   width: 100%;
   padding: 1rem 0;
@@ -229,30 +401,16 @@ label {
 .btn:active { transform: translateY(0); }
 .btn:disabled { opacity: .6; cursor: default; }
 
-.alert {
-  text-align: center;
-  padding: .7rem 1rem;
-  border-radius: 10px;
-  margin-top: 1rem;
-  font-weight: 600;
-  font-size: 1rem;
-}
-.alert.error {
-  color: #7f1d1d;
-  background: #fee2e2;
-  border: 1px solid #fecaca;
-}
-.alert.success {
-  color: #064e3b;
-  background: #d1fae5;
-  border: 1px solid #a7f3d0;
-}
+.alert { text-align: center; padding: .7rem 1rem; border-radius: 10px; margin-top: 1rem; font-weight: 600; font-size: 1rem; }
+.alert.error { color: #7f1d1d; background: #fee2e2; border: 1px solid #fecaca; }
+.alert.success { color: #064e3b; background: #d1fae5; border: 1px solid #a7f3d0; }
 
-.foot {
-  margin-top: 1.2rem;
-  font-size: 1.05rem;
-  color: var(--muted);
-  text-align: center;
-}
+.foot { margin-top: 1.2rem; font-size: 1.05rem; color: var(--muted); text-align: center; }
 .foot a { color: var(--primary); font-weight: 700; }
+
+/* Opcional: altura de select parecida al input */
+select.input { height: 2.9rem; }
+
+/* Opcional: un poquito más de aire entre filas contiguas */
+.form .row + .row { margin-top: .25rem; }
 </style>
