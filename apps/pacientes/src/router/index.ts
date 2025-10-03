@@ -22,9 +22,9 @@ export const routes = [
     meta: { requiresAuth: true },
     children: [
       { path: '',            name: 'patient-home',        component: AppHomeView },
-      { path: 'citas',       name: 'patient-appointments',component: AppAppointmentsView },
-      { path: 'resultados',  name: 'patient-results',     component: AppResultsView },
-      { path: 'perfil',      name: 'patient-profile',     component: AppProfileView },
+      { path: 'citas',       name: 'patient-appointments',component: AppAppointmentsView, meta: { requiresVerified: true } },
+      { path: 'resultados',  name: 'patient-results',     component: AppResultsView, meta: { requiresVerified: true } },
+      { path: 'perfil',      name: 'patient-profile',     component: AppProfileView, meta: { requiresVerified: true } },
     ],
   },
 
@@ -60,6 +60,13 @@ router.beforeEach(async (to) => {
    if (to.meta.guestOnly && user) {
     const role = await getRoleClaim?.()
     if (role === 'patient') return '/app'
+  }
+
+  // Bloqueo por verificación de email
+  if (to.meta.requiresVerified) {
+    const u = await getCurrentUser?.()
+    try { await u?.reload?.() } catch {}
+    if (!u?.emailVerified) return '/app' // vuelve al Home; el banner explica qué hacer
   }
 
   return true
