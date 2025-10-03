@@ -8,12 +8,14 @@ import AppLayout from '@/layouts/AppLayout.vue'
 import AppAppointmentsView from '../views/paciente/AppAppointmentsView.vue'
 import AppResultsView from '../views/paciente/AppResultsView.vue'
 import AppProfileView from '../views/paciente/AppProfileView.vue'
+import ResetPasswordView from '@/views/public/ResetPasswordView.vue'
 
 export const routes = [
   // públicas (opcional)
   { path: '/', component: LandingView, meta: { guestOnly: true } },
   { path: '/login', component: LoginView, meta: { guestOnly: true } },
   { path: '/registro', component: RegisterView, meta: { guestOnly: true } },
+  { path: '/recuperar', component: ResetPasswordView, meta: { guestOnly: true } },
 
   // área paciente
   {
