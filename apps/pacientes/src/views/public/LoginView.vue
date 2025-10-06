@@ -18,6 +18,30 @@ import PublicLayout from '../../layouts/PublicLayout.vue'
 </script>
 
 <style>
+html, body {
+  height: 100%;
+  margin: 0;
+}
+
+#app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+main {
+  flex: 1;
+}
+
+footer {
+  margin-top: auto;
+  text-align: center;
+  padding: 1rem;
+  background: #f4f4f4;
+  color: #333;
+  font-size: 0.9rem;
+}
+
 body {
   min-height: 100vh;
   margin: 0;
@@ -27,7 +51,6 @@ body {
   position: relative;
 }
 
-/* Fondo con logo CliniTrack centrado y a pantalla completa */
 .login-bg {
   position: fixed;
   top: 0; left: 0;

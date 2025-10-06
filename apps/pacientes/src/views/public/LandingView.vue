@@ -1,3 +1,4 @@
+
 <template>
   <PublicLayout>
     <div class="landing-bg"></div>
