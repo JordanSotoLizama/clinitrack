@@ -9,16 +9,9 @@
 import { onMounted, onBeforeUnmount, ref } from 'vue'
 import { recordPayment } from '@/services/payments'
 
-/**
- * Botón PayPal (Sandbox) para demo de integración externa.
- * - Carga el SDK dinámicamente con client-id de .env (o 'sb' por defecto).
- * - Crea la orden en el cliente y captura al aprobar.
- * - Registra el resultado en Firestore (colección 'payments').
- */
-
 const props = defineProps<{
-  appointmentId: string       // id de la cita (p. ej. `${slotId}_${uid}`)
-  amountClp: number           // monto CLP entero (ej. 10000)
+  appointmentId: string
+  amountClp: number           // seguimos guardando CLP internamente
 }>()
 
 const emit = defineEmits<{
@@ -34,10 +27,10 @@ let scriptEl: HTMLScriptElement | null = null
 function loadPayPalSDK(): Promise<any> {
   return new Promise((resolve, reject) => {
     if ((window as any).paypal) return resolve((window as any).paypal)
-    const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 'sb' // 'sb' funciona en sandbox
+    const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID || 'sb'
+    const currency = import.meta.env.VITE_PAYPAL_CURRENCY || 'USD' // <- USD por defecto
     scriptEl = document.createElement('script')
-    // CLP es moneda sin decimales. Intent 'capture' para cobrar al aprobar.
-    scriptEl.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=CLP&intent=capture`
+    scriptEl.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=${currency}&intent=capture`
     scriptEl.onload = () => resolve((window as any).paypal)
     scriptEl.onerror = () => reject(new Error('No se pudo cargar el SDK de PayPal'))
     document.head.appendChild(scriptEl)
@@ -47,16 +40,16 @@ function loadPayPalSDK(): Promise<any> {
 onMounted(async () => {
   try {
     const paypal = await loadPayPalSDK()
+    const currency = (import.meta.env.VITE_PAYPAL_CURRENCY || 'USD').toUpperCase()
+
     buttonsInstance = paypal.Buttons({
       style: { layout: 'vertical', label: 'paypal' },
 
-      // Orden “client-side” (suficiente para demo).
+      // Para demo: si es CLP, mandamos entero; si es USD, mandamos 10.00 fijo
       createOrder: (_data: any, actions: any) => {
-        // CLP: valor como string entero (sin decimales)
+        const value = currency === 'CLP' ? String(props.amountClp) : '10.00'
         return actions.order.create({
-          purchase_units: [
-            { amount: { value: String(props.amountClp), currency_code: 'CLP' } }
-          ]
+          purchase_units: [{ amount: { value, currency_code: currency } }]
         })
       },
 
@@ -67,7 +60,7 @@ onMounted(async () => {
           await recordPayment({
             appointmentId: props.appointmentId,
             orderId,
-            amount: props.amountClp,
+            amount: props.amountClp,     // seguimos registrando CLP internamente
             status: 'approved',
           })
           emit('paid')
@@ -118,10 +111,6 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   try { buttonsInstance?.close?.() } catch {}
-  if (scriptEl && scriptEl.parentNode) {
-    // Deja el SDK cargado si piensas usar varios botones en la vista
-    // scriptEl.parentNode.removeChild(scriptEl)
-  }
 })
 </script>
 

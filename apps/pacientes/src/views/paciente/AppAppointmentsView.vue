@@ -91,10 +91,11 @@
 
             <div class="appt-actions">
               <span class="badge" :data-status="a.status">{{ a.status }}</span>
+              <span v-if="paidByApptId[a.id]" class="badge paid">paid</span>
 
-              <!-- Botón de pago SOLO para citas 'requested' -->
+              <!-- Botón de pago SOLO si está requested y NO tiene pago aprobado -->
               <button
-                v-if="a.status === 'requested'"
+                v-if="a.status === 'requested' && !paidByApptId[a.id]"
                 class="btn-pay"
                 :disabled="payOpenedId === a.id"
                 @click="openPay(a.id)"
@@ -148,7 +149,8 @@ import {
 } from '@/services/appointments'
 import { db } from '@/services/firebase'
 import { doc, getDoc } from 'firebase/firestore'
-import PayPalButton from '@/components/app/PayPalButton.vue'
+import PayPalButton from '../../components/app/PaypalButton.vue'
+import { subscribeMyApprovedPayments } from '@/services/payments'
 
 /* ----------------- Estado base ----------------- */
 const loadingSlots = ref(true)
@@ -164,11 +166,14 @@ const DEMO_AMOUNT_CLP = 10000
 const allSlots = ref<DoctorSlot[]>([])
 const myAppts = ref<Appointment[]>([])
 
-/* Filtro de especialidad (simple, cliente) */
+/* Pagos aprobados por cita (para ocultar CTA) */
+const paidByApptId = ref<Record<string, boolean>>({})
+
+/* Filtro de especialidad */
 const specialties = ref<Specialty[]>(['General', 'Traumatología', 'Laboratorio'])
 const selectedSpecialty = ref<Specialty>('General')
 
-/* Para mostrar detalles en "Mis citas" sin cambiar el servicio, traemos el slot */
+/* Metadatos slot para Mis citas */
 const slotMeta = ref<Record<string, { startIso: string; doctorName?: string }>>({})
 
 /* ----------------- Semana (7 días) ----------------- */
@@ -215,6 +220,7 @@ function formatDateLong(iso?: string) {
 /* ----------------- Suscripciones ----------------- */
 let unsubSlots: (() => void) | null = null
 let unsubAppts: (() => void) | null = null
+let unsubPaid: (() => void) | null = null
 
 onMounted(async () => {
   unsubSlots = await subscribeAvailableSlots((slots) => {
@@ -225,7 +231,7 @@ onMounted(async () => {
   unsubAppts = await subscribeMyAppointments(async (appts) => {
     myAppts.value = appts
     loadingAppts.value = false
-    // Traer metadatos del slot (hora y médico) para cada cita
+    // Metadatos del slot (hora y médico) para cada cita
     const ids = Array.from(new Set(appts.map(a => a.slotId)))
     for (const id of ids) {
       if (slotMeta.value[id]) continue
@@ -238,11 +244,17 @@ onMounted(async () => {
       }
     }
   })
+
+  // Suscripción a pagos aprobados del usuario
+  unsubPaid = await subscribeMyApprovedPayments((map) => {
+    paidByApptId.value = map
+  })
 })
 
 onBeforeUnmount(() => {
   unsubSlots?.(); unsubSlots = null
   unsubAppts?.(); unsubAppts = null
+  unsubPaid?.(); unsubPaid = null
 })
 
 /* ----------------- Derivados para UI ----------------- */
@@ -336,6 +348,10 @@ function closePay() {
 }
 function onPaid() {
   payMessage.value = 'Pago registrado correctamente (demo).'
+  if (payOpenedId.value) {
+    // Refleja inmediato; la suscripción también lo actualizará
+    paidByApptId.value[payOpenedId.value] = true
+  }
   payOpenedId.value = null
 }
 function onPayFailed() {
@@ -384,6 +400,7 @@ function onPayFailed() {
 .badge { font-size: 12px; border-radius: 999px; padding: 2px 8px; border: 1px solid #d1d5db; text-transform: lowercase; }
 .badge[data-status="requested"] { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 .badge[data-status="cancelled"] { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+.badge.paid { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
 
 .btn-pay { background: #10b981; color: white; border: none; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .btn-pay:disabled { opacity: .6; cursor: default; }
