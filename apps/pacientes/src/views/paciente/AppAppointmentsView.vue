@@ -88,8 +88,21 @@
                 {{ formatHourLocal(slotMeta[a.slotId]?.startIso) }}
               </div>
             </div>
+
             <div class="appt-actions">
               <span class="badge" :data-status="a.status">{{ a.status }}</span>
+
+              <!-- Botón de pago SOLO para citas 'requested' -->
+              <button
+                v-if="a.status === 'requested'"
+                class="btn-pay"
+                :disabled="payOpenedId === a.id"
+                @click="openPay(a.id)"
+                title="Pagar (demo con PayPal Sandbox)"
+              >
+                Pagar
+              </button>
+
               <button
                 class="btn-cancel"
                 :disabled="busyApptId === a.id || a.status === 'cancelled'"
@@ -99,12 +112,26 @@
               </button>
             </div>
           </li>
+
+          <!-- Contenedor del botón PayPal (debajo de la cita abierta) -->
+          <li v-if="payOpenedId" class="paybox">
+            <PayPalButton
+              :appointment-id="payOpenedId"
+              :amount-clp="DEMO_AMOUNT_CLP"
+              @paid="onPaid"
+              @failed="onPayFailed"
+            />
+            <div class="pay-hint">Demo • Se registrará el pago en tu historial interno</div>
+            <button class="btn-link" @click="closePay">Cerrar</button>
+          </li>
+
           <li v-if="myApptsSorted.length === 0" class="hint">Aún no tienes citas.</li>
         </ul>
       </aside>
     </main>
 
     <p v-if="lastError" class="error">{{ lastError }}</p>
+    <p v-if="payMessage" class="ok">{{ payMessage }}</p>
   </div>
 </template>
 
@@ -121,6 +148,7 @@ import {
 } from '@/services/appointments'
 import { db } from '@/services/firebase'
 import { doc, getDoc } from 'firebase/firestore'
+import PayPalButton from '@/components/app/PayPalButton.vue'
 
 /* ----------------- Estado base ----------------- */
 const loadingSlots = ref(true)
@@ -128,6 +156,10 @@ const loadingAppts = ref(true)
 const lastError = ref<string | null>(null)
 const busySlotId = ref<string | null>(null)
 const busyApptId = ref<string | null>(null)
+
+const payOpenedId = ref<string | null>(null)
+const payMessage = ref<string | null>(null)
+const DEMO_AMOUNT_CLP = 10000
 
 const allSlots = ref<DoctorSlot[]>([])
 const myAppts = ref<Appointment[]>([])
@@ -257,6 +289,7 @@ function findSlotById(id: string) {
 
 async function onRequest(slotId: string) {
   lastError.value = null
+  payMessage.value = null
   const s = findSlotById(slotId)
   const when = s ? `${formatDateShort(s.startIso)} ${formatHourLocal(s.startIso)}` : 'este horario'
   const who = s?.doctorName || 'el profesional'
@@ -275,7 +308,8 @@ async function onRequest(slotId: string) {
 
 async function onCancel(appointmentId: string) {
   lastError.value = null
-  const slotId = appointmentId.split('_')[0] // form: slotId_uid
+  payMessage.value = null
+  const slotId = appointmentId.split('_')[0]
   const s = slotMeta.value[slotId]
   const when = s ? `${formatDateShort(s.startIso)} ${formatHourLocal(s.startIso)}` : 'esta cita'
   const ok = window.confirm(`¿Seguro que deseas cancelar ${when}?`)
@@ -284,11 +318,28 @@ async function onCancel(appointmentId: string) {
   busyApptId.value = appointmentId
   try {
     await cancelAppointmentById(appointmentId)
+    if (payOpenedId.value === appointmentId) payOpenedId.value = null
   } catch (e: any) {
     lastError.value = e?.message ?? 'No se pudo cancelar'
   } finally {
     busyApptId.value = null
   }
+}
+
+/* ---- Pago (PayPal) ---- */
+function openPay(appointmentId: string) {
+  payMessage.value = null
+  payOpenedId.value = appointmentId
+}
+function closePay() {
+  payOpenedId.value = null
+}
+function onPaid() {
+  payMessage.value = 'Pago registrado correctamente (demo).'
+  payOpenedId.value = null
+}
+function onPayFailed() {
+  payMessage.value = 'No se pudo completar el pago (demo).'
 }
 </script>
 
@@ -333,11 +384,20 @@ async function onCancel(appointmentId: string) {
 .badge { font-size: 12px; border-radius: 999px; padding: 2px 8px; border: 1px solid #d1d5db; text-transform: lowercase; }
 .badge[data-status="requested"] { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 .badge[data-status="cancelled"] { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
+
+.btn-pay { background: #10b981; color: white; border: none; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.btn-pay:disabled { opacity: .6; cursor: default; }
+
 .btn-cancel { background: #ef4444; color: white; border: none; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .btn-cancel:disabled { opacity: .6; cursor: default; }
 
 .hint { color: #6b7280; font-size: 14px; }
 .error { color: #b91c1c; }
+.ok { color: #065f46; }
+
+.paybox { border: 1px dashed #d1d5db; border-radius: 10px; padding: 10px; background: #f9fafb; }
+.pay-hint { font-size: 12px; color: #6b7280; margin-top: 6px; }
+.btn-link { background: transparent; border: none; color: #2563eb; cursor: pointer; padding: 0; }
 @media (max-width: 900px) {
   .grid { grid-template-columns: 1fr; }
 }
