@@ -36,7 +36,6 @@
           <h2 class="panel-title">
             Disponibles para {{ formatDateLong(selectedDayIso) }}
           </h2>
-          <span class="pill" v-if="!loadingSlots">{{ totalSlotsOfDay }} horarios</span>
         </div>
 
         <div v-if="loadingSlots" class="hint">Cargando horarios…</div>
@@ -149,7 +148,7 @@ import {
 } from '@/services/appointments'
 import { db } from '@/services/firebase'
 import { doc, getDoc } from 'firebase/firestore'
-import PayPalButton from '../../components/app/PaypalButton.vue'
+import PayPalButton from '@/components/app/PayPalButton.vue'
 import { subscribeMyApprovedPayments } from '@/services/payments'
 
 /* ----------------- Estado base ----------------- */
@@ -271,8 +270,6 @@ const slotsOfSelectedDay = computed(() => {
   })
 })
 
-const totalSlotsOfDay = computed(() => slotsOfSelectedDay.value.length)
-
 const doctorsOfDay = computed(() => {
   const byDoctor: Record<string, { doctorId: string; doctorName?: string; specialty: string; slots: DoctorSlot[] }> = {}
   for (const s of slotsOfSelectedDay.value) {
@@ -349,7 +346,6 @@ function closePay() {
 function onPaid() {
   payMessage.value = 'Pago registrado correctamente (demo).'
   if (payOpenedId.value) {
-    // Refleja inmediato; la suscripción también lo actualizará
     paidByApptId.value[payOpenedId.value] = true
   }
   payOpenedId.value = null
@@ -378,8 +374,6 @@ function onPayFailed() {
 .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
 .panel-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .panel-title { margin: 0 0 8px; font-size: 16px; font-weight: 700; }
-
-.pill { font-size: 12px; border-radius: 999px; padding: 2px 10px; background: #eff6ff; border: 1px solid #bfdbfe; color: #1d4ed8; }
 
 .doctor-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
 .doctor-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
