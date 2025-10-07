@@ -1,3 +1,4 @@
+
 <template>
   <PublicLayout>
     <!-- wrapper local para evitar estilos globales en <body> -->
@@ -42,7 +43,7 @@ import PublicLayout from '../../layouts/PublicLayout.vue'
 </script>
 
 <style scoped>
-/* Antes estaba en body{} (global). Lo movemos a un contenedor local. */
+/* Contenedor local (antes estaba en body{}) */
 .landing-page {
   min-height: 100vh;
   margin: 0;
@@ -58,8 +59,7 @@ import PublicLayout from '../../layouts/PublicLayout.vue'
   inset: 0;
   z-index: -1;
   background: url('/clinitrack-logo.png') no-repeat center center;
-  /* Antes: background-size: 2000 (inválido) o auto. 
-     Dejamos un tamaño fijo grande; ajusta si lo quieres más/menos grande. */
+  /* tamaño fijo grande; ajusta a gusto */
   background-size: 1200px auto;
   opacity: 0.10;
   pointer-events: none;

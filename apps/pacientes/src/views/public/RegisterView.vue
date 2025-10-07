@@ -35,7 +35,6 @@
           </div>
 
           <div class="row">
-
             <div class="field half">
               <label>Apellido paterno</label>
               <input
@@ -60,7 +59,6 @@
           </div>
 
           <div class="row">
-
             <div class="field half">
               <label>Email</label>
               <input
@@ -174,16 +172,8 @@ const router = useRouter()
 const DEMO = import.meta.env.VITE_DEMO === '1'
 
 const isapres = [
-  'Banmédica',
-  'Isalud',
-  'Colmena',
-  'Consalud',
-  'CruzBlanca',
-  'Cruz del norte',
-  'Nueva MasVida',
-  'Fundación',
-  'Vida Tres',
-  'Esencial'
+  'Banmédica','Isalud','Colmena','Consalud','CruzBlanca',
+  'Cruz del norte','Nueva MasVida','Fundación','Vida Tres','Esencial'
 ]
 
 const disabledReason = computed(() => {
@@ -200,12 +190,9 @@ const disabledReason = computed(() => {
   if (form.prevision === 'Isapre' && !form.isapre) faltantes.push('isapre')
   if (!form.aceptaTerminos) faltantes.push('aceptar Términos')
   if (!form.autorizaDatos) faltantes.push('autorizar datos de salud')
-
-  if (!faltantes.length) return ''
-  return 'Completa: ' + faltantes.join(', ') + '.'
+  return faltantes.length ? 'Completa: ' + faltantes.join(', ') + '.' : ''
 })
 
-// Modelo del formulario (mismo que ya tienes en el template)
 type Form = {
   nombres: string
   apellidoPaterno: string
@@ -226,15 +213,12 @@ const form = reactive<Form>({
   prevision: '', isapre: '', aceptaTerminos: false, autorizaDatos: false
 })
 
-// Estados UI
 const submitting = ref(false)
 const serverError = ref('')
 const okMsg = ref('')
 
-// Email a minúsculas al salir
 function emailToLower() { form.email = form.email.trim().toLowerCase() }
 
-// ---- RUT: mantener tu auto-formateo en vivo ----
 function onRutInput(e: Event) {
   const el = e.target as HTMLInputElement
   const start = el.selectionStart ?? el.value.length
@@ -245,9 +229,7 @@ function onRutInput(e: Event) {
   requestAnimationFrame(() => el.setSelectionRange(newPos, newPos))
 }
 function formatRutFinal() { form.rut = formatRut(form.rut) }
-// -----------------------------------------------
 
-// Fecha máxima (≥ 18)
 const maxBirthDate = computed(() => {
   const d = new Date(); d.setFullYear(d.getFullYear() - 18)
   const mm = String(d.getMonth() + 1).padStart(2, '0')
@@ -255,7 +237,6 @@ const maxBirthDate = computed(() => {
   return `${d.getFullYear()}-${mm}-${dd}`
 })
 
-// Habilitar botón (chequeos mínimos visuales)
 const puedeContinuar = computed(() => {
   const okCred = form.email && form.password.length >= 6 && form.password === form.confirm
   const okIdent = form.nombres && form.apellidoPaterno && form.apellidoMaterno && form.rut && form.fechaNacimiento
@@ -264,7 +245,6 @@ const puedeContinuar = computed(() => {
   return okCred && okIdent && okPrev && okConsent
 })
 
-// Submit real (Auth + rutIndex + patients)
 async function onSubmit () {
   if (DEMO) {
     okMsg.value = 'Vista demo: se simulará el registro.'
@@ -276,35 +256,26 @@ async function onSubmit () {
   okMsg.value = ''
 
   try {
-    console.log('[ui] submit register with', form.email)
     await registerPatientWithEmail({
       email: form.email,
       password: form.password,
       nombres: form.nombres,
       apellidoPaterno: form.apellidoPaterno,
       apellidoMaterno: form.apellidoMaterno,
-      rut: form.rut,                       // el servicio valida + normaliza
+      rut: form.rut,
       fechaNacimiento: form.fechaNacimiento,
       prevision: form.prevision as any,
       isapre: form.prevision === 'Isapre' ? form.isapre : undefined,
     })
-
     okMsg.value = 'Cuenta creada con éxito. 🎉'
-    // TODO: en el siguiente paso redirigimos a /app o /perfil y montamos guard de sesión.
     router.push('/app')
   } catch (e: any) {
     const code = e?.code || ''
-    if (code === 'auth/email-already-in-use') {
-      serverError.value = 'El correo ya está en uso.'
-    } else if (code === 'auth/invalid-email') {
-      serverError.value = 'Correo inválido.'
-    } else if (e?.message?.includes('RUT ya registrado')) {
-      serverError.value = 'RUT ya registrado en el sistema.'
-    } else if (e?.message?.includes('RUT inválido')) {
-      serverError.value = 'RUT inválido. Revisa el dígito verificador.'
-    } else {
-      serverError.value = e?.message || 'No se pudo crear la cuenta.'
-    }
+    if (code === 'auth/email-already-in-use') serverError.value = 'El correo ya está en uso.'
+    else if (code === 'auth/invalid-email')     serverError.value = 'Correo inválido.'
+    else if (e?.message?.includes('RUT ya registrado')) serverError.value = 'RUT ya registrado en el sistema.'
+    else if (e?.message?.includes('RUT inválido'))      serverError.value = 'RUT inválido. Revisa el dígito verificador.'
+    else serverError.value = e?.message || 'No se pudo crear la cuenta.'
   } finally {
     submitting.value = false
   }
@@ -324,13 +295,13 @@ async function onSubmit () {
   justify-content: center;
   align-items: center;
   padding: 2rem 0;
-  width: 100vw;    
+  width: 100vw;
   max-width: 100vw;
   box-sizing: border-box;
 }
 .card {
   width: 100%;
-  max-width: 700px; /* Si quieres aún más aire, puedes subirla a 760–820px */
+  max-width: 700px; /* puedes subir a 760–820px si quieres más aire */
   background: #ffffff;
   border: 1px solid #e5e7eb;
   border-radius: 20px;
@@ -349,7 +320,7 @@ async function onSubmit () {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 2rem; /* más respiración vertical */
+  gap: 2rem;
 }
 
 /* FILAS EN GRID: 1 columna por defecto; 2 columnas en >=600px */
@@ -359,17 +330,16 @@ async function onSubmit () {
   gap: 1rem 1.2rem; /* fila / columna */
   align-items: start;
 }
-@media (min-width: 600px) { /* antes: 768px (no se activaba dentro de 700px) */
+@media (min-width: 600px) {
   .form .row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 /* Campos */
 .form .field { width: 100%; min-width: 0; display: flex; flex-direction: column; }
-
 label { display: block; font-size: 1rem; color: var(--text); margin-bottom: .45rem; font-weight: 500; }
 
 .input {
-  width: 80%;
+  width: 100%;
   padding: .85rem 1rem;
   border: 1px solid #d1d5db;
   border-radius: 10px;
@@ -384,7 +354,7 @@ label { display: block; font-size: 1rem; color: var(--text); margin-bottom: .45r
 .msg { display: block; margin-top: .35rem; font-size: .95rem; color: #64748b; }
 .msg.error { color: #b91c1c; }
 
-/* Botón y alerts (igual que tenías) */
+/* Botón y alerts */
 .btn {
   width: 100%;
   padding: 1rem 0;

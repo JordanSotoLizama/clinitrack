@@ -85,11 +85,9 @@ function mapAuthError (code: string): string {
 async function onSubmit () {
   errorMsg.value = ''
 
-  // normaliza email
   const email = form.email.trim().toLowerCase()
   const password = form.password
 
-  // Validaciones rápidas antes de llamar a Firebase
   if (!isValidEmail(email)) {
     errorMsg.value = 'Correo inválido.'
     return
@@ -102,15 +100,11 @@ async function onSubmit () {
   loading.value = true
   try {
     await loginWithEmail(email, password)
-    // Si luego filtras por claims, aquí puedes forzar refresh:
-    // await auth.currentUser?.getIdToken(true)
     await router.push('/home')
   } catch (e: any) {
     console.error('login error:', e)
     const code = e?.code || ''
     const msg = String(e?.message || '')
-
-    // Si en el backend detectas staff y devuelves un mensaje, mantenlo:
     if (msg.includes('pertenece al staff')) {
       errorMsg.value = 'Esta cuenta pertenece al staff. Usa el portal de staff.'
     } else {
@@ -180,6 +174,7 @@ input {
   transition: border 0.2s, background 0.2s;
   background: #fafbfc;
 }
+
 input:focus {
   border-color: #1976d2;
   background: #fff;
