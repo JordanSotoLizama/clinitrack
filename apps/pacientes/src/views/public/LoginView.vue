@@ -1,48 +1,124 @@
 <template>
   <PublicLayout>
-    <div class="login-bg"></div>
-    <section>
-      <h2>Ingresar</h2>
-      <form>
-        <input placeholder="Email" />
-        <input type="password" placeholder="Contraseña" />
-        <button type="button">Entrar</button>
-      </form>
-      <p>¿No tienes cuenta? <router-link to="/registro">Regístrate</router-link></p>
-    </section>
+    <!-- wrapper local en vez de body{} -->
+    <div class="login-page">
+      <div class="login-bg"></div>
+
+      <section>
+        <h2>Ingresar</h2>
+
+        <form @submit.prevent="onSubmit" novalidate>
+          <label class="sr-only" for="email">Email</label>
+          <input
+            id="email"
+            name="email"
+            placeholder="Email"
+            type="email"
+            autocomplete="email"
+            v-model.trim="form.email"
+          />
+
+          <label class="sr-only" for="password">Contraseña</label>
+          <input
+            id="password"
+            name="password"
+            type="password"
+            placeholder="Contraseña"
+            autocomplete="current-password"
+            v-model="form.password"
+          />
+
+          <button type="submit" :disabled="loading">
+            {{ loading ? 'Ingresando…' : 'Ingresar' }}
+          </button>
+
+          <p v-if="errorMsg" class="alert error">{{ errorMsg }}</p>
+        </form>
+
+        <p>¿No tienes cuenta? <router-link to="/registro">Regístrate</router-link></p>
+        <RouterLink to="/recuperar" class="link">¿Olvidaste tu contraseña?</RouterLink>
+      </section>
+    </div>
   </PublicLayout>
 </template>
 
 <script setup lang="ts">
+import { reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { loginWithEmail } from '@/services/auth'
 import PublicLayout from '../../layouts/PublicLayout.vue'
+
+const router = useRouter()
+
+const form = reactive({
+  email: '',
+  password: '',
+})
+
+const loading = ref(false)
+const errorMsg = ref('')
+
+function isValidEmail (v: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)
+}
+
+function mapAuthError (code: string): string {
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'Correo inválido.'
+    case 'auth/missing-password':
+    case 'auth/weak-password':
+      return 'Contraseña inválida.'
+    case 'auth/user-disabled':
+      return 'Tu cuenta está deshabilitada.'
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Correo o contraseña incorrectos.'
+    case 'auth/too-many-requests':
+      return 'Demasiados intentos. Intenta más tarde.'
+    default:
+      return 'No se pudo iniciar sesión. Intenta nuevamente.'
+  }
+}
+
+async function onSubmit () {
+  errorMsg.value = ''
+
+  const email = form.email.trim().toLowerCase()
+  const password = form.password
+
+  if (!isValidEmail(email)) {
+    errorMsg.value = 'Correo inválido.'
+    return
+  }
+  if (!password || password.length < 6) {
+    errorMsg.value = 'La contraseña debe tener al menos 6 caracteres.'
+    return
+  }
+
+  loading.value = true
+  try {
+    await loginWithEmail(email, password)
+    await router.push('/home')
+  } catch (e: any) {
+    console.error('login error:', e)
+    const code = e?.code || ''
+    const msg = String(e?.message || '')
+    if (msg.includes('pertenece al staff')) {
+      errorMsg.value = 'Esta cuenta pertenece al staff. Usa el portal de staff.'
+    } else {
+      errorMsg.value = mapAuthError(code)
+    }
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
-<style>
-html, body {
-  height: 100%;
-  margin: 0;
-}
-
-#app {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-main {
-  flex: 1;
-}
-
-footer {
-  margin-top: auto;
-  text-align: center;
-  padding: 1rem;
-  background: #f4f4f4;
-  color: #333;
-  font-size: 0.9rem;
-}
-
-body {
+<style scoped>
+/* reemplaza el antiguo body{} por un contenedor local */
+.login-page {
   min-height: 100vh;
   margin: 0;
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
@@ -51,13 +127,13 @@ body {
   position: relative;
 }
 
+/* Fondo con logo centrado */
 .login-bg {
   position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
+  inset: 0;
   z-index: -1;
   background: url('/clinitrack-logo.png') no-repeat center center;
-  background-size: 2000px auto;
+  background-size: 1200px auto;
   opacity: 0.10;
   pointer-events: none;
 }
@@ -95,7 +171,7 @@ input {
   border-radius: 8px;
   font-size: 1rem;
   outline: none;
-  transition: border 0.2s;
+  transition: border 0.2s, background 0.2s;
   background: #fafbfc;
 }
 
@@ -116,10 +192,7 @@ button {
   transition: background 0.2s;
   margin-top: 0.5rem;
 }
-
-button:hover {
-  background: #1565c0;
-}
+button:hover { background: #1565c0; }
 
 p {
   margin-top: 1.5rem;
@@ -127,15 +200,12 @@ p {
   color: #444;
 }
 
-a {
-  color: #1976d2;
-  text-decoration: none;
-  font-weight: 500;
-  transition: color 0.2s;
-}
+a { color: #1976d2; text-decoration: none; font-weight: 500; }
+a:hover { color: #0d47a1; text-decoration: underline; }
 
-a:hover {
-  color: #0d47a1;
-  text-decoration: underline;
+/* util para accesibilidad (ocultar label visualmente, pero disponible a screen readers) */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); border: 0;
 }
 </style>

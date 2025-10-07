@@ -1,30 +1,40 @@
 
 <template>
   <PublicLayout>
-    <div class="landing-bg"></div>
-    <section class="landing-section">
-      <img src="https://img.freepik.com/vector-gratis/ilustracion-concepto-medico_114360-2294.jpg" alt="Clínica" class="landing-hero" />
-      <h2>Bienvenido/a a CliniTrack</h2>
-      <p class="subtitle">Tu salud, nuestra prioridad.</p>
-      <ul class="features">
-        <li>
-          <span class="icon">🩺</span>
-          Agenda tus citas médicas fácilmente
-        </li>
-        <li>
-          <span class="icon">📄</span>
-          Consulta tus exámenes y resultados online
-        </li>
-        <li>
-          <span class="icon">🔒</span>
-          Seguridad y privacidad de tus datos
-        </li>
-      </ul>
-      <div class="landing-actions">
-        <router-link to="/login" class="main-btn">Ingresar</router-link>
-        <router-link to="/registro" class="sec-btn">Registrarme</router-link>
-      </div>
-    </section>
+    <!-- wrapper local para evitar estilos globales en <body> -->
+    <div class="landing-page">
+      <div class="landing-bg"></div>
+
+      <section class="landing-section">
+        <img
+          src="https://img.freepik.com/vector-gratis/ilustracion-concepto-medico_114360-2294.jpg"
+          alt="Clínica"
+          class="landing-hero"
+        />
+        <h2>Bienvenido/a a CliniTrack</h2>
+        <p class="subtitle">Tu salud, nuestra prioridad.</p>
+
+        <ul class="features">
+          <li>
+            <span class="icon">🩺</span>
+            Agenda tus citas médicas fácilmente
+          </li>
+          <li>
+            <span class="icon">📄</span>
+            Consulta tus exámenes y resultados online
+          </li>
+          <li>
+            <span class="icon">🔒</span>
+            Seguridad y privacidad de tus datos
+          </li>
+        </ul>
+
+        <div class="landing-actions">
+          <router-link to="/login" class="main-btn">Ingresar</router-link>
+          <router-link to="/registro" class="sec-btn">Registrarme</router-link>
+        </div>
+      </section>
+    </div>
   </PublicLayout>
 </template>
 
@@ -32,8 +42,9 @@
 import PublicLayout from '../../layouts/PublicLayout.vue'
 </script>
 
-<style>
-body {
+<style scoped>
+/* Contenedor local (antes estaba en body{}) */
+.landing-page {
   min-height: 100vh;
   margin: 0;
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
@@ -42,13 +53,14 @@ body {
   position: relative;
 }
 
+/* Fondo con logo gigante y tenue */
 .landing-bg {
   position: fixed;
-  top: 0; left: 0;
-  width: 100vw; height: 100vh;
+  inset: 0;
   z-index: -1;
   background: url('/clinitrack-logo.png') no-repeat center center;
-  background-size: 2000;
+  /* tamaño fijo grande; ajusta a gusto */
+  background-size: 1200px auto;
   opacity: 0.10;
   pointer-events: none;
 }

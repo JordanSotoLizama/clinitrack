@@ -1,10 +1,9 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import '@/services/firebase'
 
 import App from './App.vue'
 import router from './router'
-
-import './services/firebase'
 
 const app = createApp(App)
 
