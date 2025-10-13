@@ -4,11 +4,19 @@
       <div class="header-line">
         <h1 class="title">Reserva tu hora</h1>
 
-        <!-- Filtro de especialidad -->
+        <!-- Filtro de especialidad (dinámico) -->
         <label class="spec-wrap">
           <span>Especialidad</span>
           <select v-model="selectedSpecialty" class="spec-select">
             <option v-for="sp in specialties" :key="sp" :value="sp">{{ sp }}</option>
+          </select>
+        </label>
+
+        <!-- NUEVO: Filtro de médico según especialidad -->
+        <label v-if="doctors.length" class="spec-wrap">
+          <span>Médico</span>
+          <select v-model="selectedDoctorUid" class="spec-select">
+            <option v-for="d in doctors" :key="d.uid" :value="d.uid">{{ d.fullName || d.uid }}</option>
           </select>
         </label>
       </div>
@@ -39,26 +47,28 @@
         </div>
 
         <div v-if="loadingSlots" class="hint">Cargando horarios…</div>
-        <div v-else-if="doctorsOfDay.length === 0" class="hint">
-          No hay horarios disponibles para este día en {{ selectedSpecialty }}.
+
+        <div v-else-if="!selectedDoctorUid">
+          <div class="hint">No hay médicos en {{ selectedSpecialty }}.</div>
         </div>
 
-        <article
-          v-for="doc in doctorsOfDay"
-          :key="doc.doctorId"
-          class="doctor-card"
-        >
+        <!-- Mostramos la tarjeta del médico seleccionado con sus horarios del día -->
+        <article v-else class="doctor-card">
           <div class="doctor-head">
             <div class="doctor-info">
-              <div class="doctor-name">{{ doc.doctorName || 'Profesional' }}</div>
-              <div class="doctor-sub">{{ doc.specialty }}</div>
+              <div class="doctor-name">{{ selectedDoctorName || 'Profesional' }}</div>
+              <div class="doctor-sub">{{ selectedSpecialty }}</div>
             </div>
             <div class="center-type">Presencial</div>
           </div>
 
-          <div class="times">
+          <div v-if="daySlots.length === 0" class="hint">
+            No hay horarios disponibles para este día en {{ selectedSpecialty }}.
+          </div>
+
+          <div v-else class="times">
             <button
-              v-for="s in doc.slots"
+              v-for="s in daySlots"
               :key="s.id"
               class="time-chip"
               :disabled="busySlotId === s.id"
@@ -90,11 +100,14 @@
 
             <div class="appt-actions">
               <span class="badge" :data-status="a.status">{{ a.status }}</span>
-              <span v-if="paidByApptId[a.id]" class="badge paid">paid</span>
 
-              <!-- Botón de pago SOLO si está requested y NO tiene pago aprobado -->
+               <!-- Si hay reembolso pendiente, mostramos ese badge -->
+              <span v-if="isRefundPending(a)" class="badge refund">reembolso pendiente</span>
+              <!-- Si no hay reembolso pendiente pero está pagada, mostramos 'paid' -->
+              <span v-else-if="isPaid(a)" class="badge paid">paid</span>
+
               <button
-                v-if="a.status === 'requested' && !paidByApptId[a.id]"
+                v-if="a.status === 'requested' && !isPaid(a)"
                 class="btn-pay"
                 :disabled="payOpenedId === a.id"
                 @click="openPay(a.id)"
@@ -113,7 +126,6 @@
             </div>
           </li>
 
-          <!-- Contenedor del botón PayPal (debajo de la cita abierta) -->
           <li v-if="payOpenedId" class="paybox">
             <PayPalButton
               :appointment-id="payOpenedId"
@@ -136,16 +148,15 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onBeforeUnmount, ref, computed } from 'vue'
+import { onMounted, onBeforeUnmount, ref, computed, watch } from 'vue'
 import {
-  subscribeAvailableSlots,
+  subscribeOpenSlotsForDay,     // NUEVO: slots por médico/día
   subscribeMyAppointments,
   requestAppointmentBySlotId,
   cancelAppointmentById,
-  type DoctorSlot,
   type Appointment,
-  type Specialty,
 } from '@/services/appointments'
+import { listSpecialties, listDoctorsBySpecialty, type DoctorLite } from '@/services/catalog'
 import { db } from '@/services/firebase'
 import { doc, getDoc } from 'firebase/firestore'
 import PayPalButton from '@/components/app/PayPalButton.vue'
@@ -162,17 +173,28 @@ const payOpenedId = ref<string | null>(null)
 const payMessage = ref<string | null>(null)
 const DEMO_AMOUNT_CLP = 10000
 
-const allSlots = ref<DoctorSlot[]>([])
+// NUEVO: slots del día (solo del médico seleccionado)
+const daySlots = ref<any[]>([])
+
+// Mis citas
 const myAppts = ref<Appointment[]>([])
 
-/* Pagos aprobados por cita (para ocultar CTA) */
+// Pagos aprobados por cita (para ocultar CTA)
 const paidByApptId = ref<Record<string, boolean>>({})
 
-/* Filtro de especialidad */
-const specialties = ref<Specialty[]>(['General', 'Traumatología', 'Laboratorio'])
-const selectedSpecialty = ref<Specialty>('General')
+// Filtro de especialidad (dinámico)
+const specialties = ref<string[]>([])
+const selectedSpecialty = ref<string>('General')
 
-/* Metadatos slot para Mis citas */
+// Lista de médicos de la especialidad y selección actual
+const doctors = ref<DoctorLite[]>([])
+const selectedDoctorUid = ref<string | null>(null)
+const selectedDoctorName = computed(() => {
+  const d = doctors.value.find(x => x.uid === selectedDoctorUid.value)
+  return d?.fullName
+})
+
+// Metadatos slot para Mis citas
 const slotMeta = ref<Record<string, { startIso: string; doctorName?: string }>>({})
 
 /* ----------------- Semana (7 días) ----------------- */
@@ -202,18 +224,10 @@ const weekDays = ref(buildWeek(startOfTodayIso()))
 const selectedDayIso = ref(weekDays.value[0].iso)
 function selectDay(iso: string) { selectedDayIso.value = iso }
 
-/* ----------------- Formatos ----------------- */
-function formatHourLocal(iso?: string) {
-  if (!iso) return ''
-  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-}
-function formatDateShort(iso?: string) {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short' })
-}
-function formatDateLong(iso?: string) {
-  if (!iso) return ''
-  return new Date(iso).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'long' })
+// util para YYYY-MM-DD
+function toYMD(iso: string) {
+  const d = new Date(iso)
+  return `${d.getUTCFullYear()}-${dd(d.getUTCMonth()+1)}-${dd(d.getUTCDate())}`
 }
 
 /* ----------------- Suscripciones ----------------- */
@@ -221,30 +235,56 @@ let unsubSlots: (() => void) | null = null
 let unsubAppts: (() => void) | null = null
 let unsubPaid: (() => void) | null = null
 
-onMounted(async () => {
-  unsubSlots = await subscribeAvailableSlots((slots) => {
-    allSlots.value = slots
-    loadingSlots.value = false
-  }, { max: 200 })
+async function resubscribeSlots() {
+  loadingSlots.value = true
+  daySlots.value = []
+  if (unsubSlots) { unsubSlots(); unsubSlots = null }
+  if (!selectedDoctorUid.value) { loadingSlots.value = false; return }
 
+  const ymd = toYMD(selectedDayIso.value)
+  unsubSlots = await subscribeOpenSlotsForDay(
+    selectedDoctorUid.value,
+    ymd,
+    (list) => {
+      daySlots.value = list
+      loadingSlots.value = false
+    }
+  )
+}
+
+onMounted(async () => {
+  // 1) Especialidades dinámicas
+  specialties.value = await listSpecialties()
+  if (!specialties.value.includes(selectedSpecialty.value) && specialties.value.length) {
+    selectedSpecialty.value = specialties.value[0]
+  }
+
+  // 2) Médicos de la especialidad seleccionada
+  doctors.value = await listDoctorsBySpecialty(selectedSpecialty.value)
+  selectedDoctorUid.value = doctors.value[0]?.uid ?? null
+
+  // 3) Slots del día/médico
+  await resubscribeSlots()
+
+  // 4) Mis citas (y mapear metadatos de slot)
   unsubAppts = await subscribeMyAppointments(async (appts) => {
     myAppts.value = appts
     loadingAppts.value = false
-    // Metadatos del slot (hora y médico) para cada cita
     const ids = Array.from(new Set(appts.map(a => a.slotId)))
     for (const id of ids) {
       if (slotMeta.value[id]) continue
       const snap = await getDoc(doc(db, 'doctor_slots', id))
       if (snap.exists()) {
-        const s = snap.data() as DoctorSlot
-        slotMeta.value[id] = { startIso: s.startIso, doctorName: s.doctorName }
+        const s = snap.data() as any
+        const startIso = s.startIso ?? s.dateISO ?? ''
+        slotMeta.value[id] = { startIso, doctorName: s.doctorName }
       } else {
         slotMeta.value[id] = { startIso: '', doctorName: undefined }
       }
     }
   })
 
-  // Suscripción a pagos aprobados del usuario
+  // 5) Suscripción a pagos del usuario
   unsubPaid = await subscribeMyApprovedPayments((map) => {
     paidByApptId.value = map
   })
@@ -256,52 +296,26 @@ onBeforeUnmount(() => {
   unsubPaid?.(); unsubPaid = null
 })
 
+// Re-suscribimos cuando cambie especialidad, médico o día
+watch(selectedSpecialty, async () => {
+  doctors.value = await listDoctorsBySpecialty(selectedSpecialty.value)
+  selectedDoctorUid.value = doctors.value[0]?.uid ?? null
+  await resubscribeSlots()
+})
+watch([selectedDoctorUid, selectedDayIso], () => { resubscribeSlots() })
+
 /* ----------------- Derivados para UI ----------------- */
-const selectedDayKey = computed(() => {
-  const d = new Date(selectedDayIso.value)
-  return `${d.getUTCFullYear()}-${dd(d.getUTCMonth()+1)}-${dd(d.getUTCDate())}`
-})
-
-const slotsOfSelectedDay = computed(() => {
-  return allSlots.value.filter(s => {
-    const d = new Date(s.startIso)
-    const key = `${d.getUTCFullYear()}-${dd(d.getUTCMonth()+1)}-${dd(d.getUTCDate())}`
-    return key === selectedDayKey.value && s.specialty === selectedSpecialty.value
-  })
-})
-
-const doctorsOfDay = computed(() => {
-  const byDoctor: Record<string, { doctorId: string; doctorName?: string; specialty: string; slots: DoctorSlot[] }> = {}
-  for (const s of slotsOfSelectedDay.value) {
-    if (!byDoctor[s.doctorId]) {
-      byDoctor[s.doctorId] = {
-        doctorId: s.doctorId,
-        doctorName: s.doctorName,
-        specialty: s.specialty,
-        slots: []
-      }
-    }
-    byDoctor[s.doctorId].slots.push(s)
-  }
-  Object.values(byDoctor).forEach(d => d.slots.sort((a, b) => a.startIso.localeCompare(b.startIso)))
-  return Object.values(byDoctor).sort((a, b) => a.slots[0].startIso.localeCompare(b.slots[0].startIso))
-})
-
 const myApptsSorted = computed(() => {
   return [...myAppts.value].sort((a, b) => a.id.localeCompare(b.id))
 })
 
 /* ----------------- Acciones ----------------- */
-function findSlotById(id: string) {
-  return allSlots.value.find(s => s.id === id)
-}
-
 async function onRequest(slotId: string) {
   lastError.value = null
   payMessage.value = null
-  const s = findSlotById(slotId)
+  const s = daySlots.value.find(x => x.id === slotId)
   const when = s ? `${formatDateShort(s.startIso)} ${formatHourLocal(s.startIso)}` : 'este horario'
-  const who = s?.doctorName || 'el profesional'
+  const who = selectedDoctorName.value || 'el profesional'
   const ok = window.confirm(`¿Confirmas reservar ${when} con ${who}?`)
   if (!ok) return
 
@@ -309,7 +323,9 @@ async function onRequest(slotId: string) {
   try {
     await requestAppointmentBySlotId(slotId)
   } catch (e: any) {
-    lastError.value = e?.message ?? 'No se pudo agendar'
+    lastError.value = e?.message ?? 'rebook-not-allowed'
+    ? 'No puedes volver a reservar este mismo horario. Por favor elige otro.'
+      : (e?.message ?? 'No se pudo agendar');
   } finally {
     busySlotId.value = null
   }
@@ -353,39 +369,67 @@ function onPaid() {
 function onPayFailed() {
   payMessage.value = 'No se pudo completar el pago (demo).'
 }
+
+/* ----------------- Formatos ----------------- */
+function formatHourLocal(iso?: string) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+}
+function formatDateShort(iso?: string) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short' })
+}
+function formatDateLong(iso?: string) {
+  if (!iso) return ''
+  return new Date(iso).toLocaleDateString([], { weekday: 'long', day: '2-digit', month: 'long' })
+}
+function isRefundPending(a: any) {
+  // Muestra "reembolso pendiente" si la cita está cancelada y:
+  // - el backend lo marcó, o
+  // - sabemos que hubo pago (paidBy/paidByApptId) pero aún no llegó la marca
+  const backendFlag = a.refundStatus === 'pending' || a.refundRequested === true;
+  const hadPayment = !!a.paidBy || !!paidByApptId.value[a.id];
+  return a.status === 'cancelled' && (backendFlag || hadPayment);
+}
+function isPaid(a: any) {
+  // Considera 'paid' si:
+  //  - la cita está en requested/confirmed
+  //  - y existe paidBy en la cita (lo escribe onPaymentApproved) o
+  //    tenemos un registro de pago aprobado en paidByApptId
+  //  - y NO hay un refund pendiente
+  const hasPaymentFlag = !!(a as any).paidBy || !!paidByApptId.value[a.id]
+  const inActiveState = a.status === 'requested' || a.status === 'confirmed'
+  const noRefundInProgress = (a as any).refundStatus !== 'pending' && !(a as any).refundRequested
+  return inActiveState && hasPaymentFlag && noRefundInProgress
+}
 </script>
 
 <style scoped>
+/* (tus estilos intactos) */
 .citas-wrap { display: grid; gap: 16px; padding: 16px; }
 .citas-header { display: grid; gap: 12px; }
 .header-line { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .title { font-size: 20px; font-weight: 700; margin: 0; }
-
 .spec-wrap { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 .spec-select { border: 1px solid #d1d5db; border-radius: 8px; padding: 6px 10px; background: #fff; }
-
 .week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; }
 .day { border: 1px solid #d1d5db; border-radius: 10px; padding: 6px 0; background: #fff; cursor: pointer; }
 .day.active { border-color: #1d4ed8; box-shadow: 0 0 0 2px rgba(29,78,216,.15) inset; }
 .day .dow { font-size: 12px; color: #374151; }
 .day .dom { font-size: 16px; font-weight: 700; color: #111827; }
-
 .grid { display: grid; gap: 16px; grid-template-columns: 2fr 1fr; }
 .panel { background: #fff; border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
 .panel-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .panel-title { margin: 0 0 8px; font-size: 16px; font-weight: 700; }
-
 .doctor-card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; margin-bottom: 10px; }
 .doctor-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
 .doctor-name { font-weight: 700; }
 .doctor-sub { color: #6b7280; font-size: 13px; }
 .center-type { background: #1d4ed8; color: white; padding: 6px 10px; border-radius: 6px; font-size: 12px; }
-
 .times { display: flex; flex-wrap: wrap; gap: 8px; }
 .time-chip { border: 1px solid #1d4ed8; background: white; color: #1d4ed8; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .time-chip:disabled { opacity: .6; cursor: default; }
 .time-chip .loading { margin-left: 6px; }
-
 .appts { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
 .appt-row { border: 1px solid #e5e7eb; border-radius: 10px; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
 .appt-title { font-weight: 700; }
@@ -395,21 +439,22 @@ function onPayFailed() {
 .badge[data-status="requested"] { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
 .badge[data-status="cancelled"] { background: #fef2f2; border-color: #fecaca; color: #b91c1c; }
 .badge.paid { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
-
 .btn-pay { background: #10b981; color: white; border: none; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .btn-pay:disabled { opacity: .6; cursor: default; }
-
 .btn-cancel { background: #ef4444; color: white; border: none; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .btn-cancel:disabled { opacity: .6; cursor: default; }
-
 .hint { color: #6b7280; font-size: 14px; }
 .error { color: #b91c1c; }
 .ok { color: #065f46; }
-
 .paybox { border: 1px dashed #d1d5db; border-radius: 10px; padding: 10px; background: #f9fafb; }
 .pay-hint { font-size: 12px; color: #6b7280; margin-top: 6px; }
 .btn-link { background: transparent; border: none; color: #2563eb; cursor: pointer; padding: 0; }
 @media (max-width: 900px) {
   .grid { grid-template-columns: 1fr; }
+}
+.badge.refund {
+  background: #fff7ed;   /* naranja muy claro */
+  border-color: #fdba74; /* naranja suave */
+  color: #9a3412;        /* texto naranja oscuro */
 }
 </style>

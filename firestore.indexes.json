@@ -1,0 +1,29 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "doctor_slots",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "doctorUid", "order": "ASCENDING" },
+        { "fieldPath": "status", "order": "ASCENDING" },
+        { "fieldPath": "dateISO", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "appointments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "doctorUid", "order": "ASCENDING" },
+        { "fieldPath": "dateISO", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "appointments",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "patientUid", "order": "ASCENDING" },
+        { "fieldPath": "dateISO", "order": "DESCENDING" }
+      ]
+    }
+  ]
+}

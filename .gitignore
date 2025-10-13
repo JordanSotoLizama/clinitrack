@@ -36,3 +36,15 @@ firebase-debug.*.log
 # Functions (TS -> JS compilado)
 functions/lib/
 functions/.runtimeconfig.json
+
+# Secrets
+serviceAccount*.json
+
+# Lint/IDE caches
+.eslintcache
+functions/.eslintcache
+.idea/
+*.iml
+
+# (Opcional) helpers locales que no quieras versionar
+apps/**/src/services/dev*.ts
