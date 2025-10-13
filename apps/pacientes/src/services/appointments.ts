@@ -14,6 +14,8 @@
  * Email (opcional, listo para extensión "Trigger Email"):
  *  - mail/{autoId}: { to, message: { subject, text, html }, ... }
  */
+import { getApp } from 'firebase/app'
+import { getFunctions, httpsCallable } from 'firebase/functions'
 import { db } from '@/services/firebase'
 import { getCurrentUser } from '@/services/auth'
 import {
@@ -58,54 +60,69 @@ function apptId(slotId: string, uid: string) {
 
 /** ---- Slots disponibles (realtime, simple) ---- */
 export async function subscribeAvailableSlots(
-  cb: (slots: DoctorSlot[]) => void,
-  opts?: { specialty?: Specialty; max?: number }
+  cb: (slots: any[]) => void,
+  opts?: { max?: number }
 ): Promise<Unsubscribe> {
   const qSlots = query(
-    collection(db, SLOTS_COL),
-    where('status', '==', 'available'),
+    collection(db, 'doctor_slots'),
+    where('status', '==', 'open'),
+    // sin orderBy => no pide índice
     limit(opts?.max ?? 100)
   )
   return onSnapshot(qSlots, (snap) => {
-    let items: DoctorSlot[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-    if (opts?.specialty) items = items.filter(s => s.specialty === opts.specialty)
-    items.sort((a, b) => a.startIso.localeCompare(b.startIso))
+    const items = snap.docs.map(d => {
+      const x = d.data() as any
+      return { id: d.id, ...x, startIso: x.dateISO }
+    })
+    // ordenamos en cliente por fecha
+    items.sort((a, b) => (a.dateISO ?? '').localeCompare(b.dateISO ?? ''))
     cb(items)
   })
 }
 
-/** ---- Slots disponibles por rango (opcional) ---- */
+/** ---- Slots disponibles por rango (recomendado: por médico) ---- */
 export async function subscribeAvailableSlotsInRange(
+  doctorUid: string,        // <-- NUEVO
   fromIso: string,
   toIso: string,
-  cb: (slots: DoctorSlot[]) => void,
-  opts?: { specialty?: Specialty; max?: number }
+  cb: (slots: any[]) => void,
+  opts?: { max?: number }
 ): Promise<Unsubscribe> {
-  let qSlots = query(
-    collection(db, SLOTS_COL),
-    where('status', '==', 'available'),
-    orderBy('startIso', 'asc'),
-    startAt(fromIso),
-    endAt(toIso),
+  const qSlots = query(
+    collection(db, 'doctor_slots'),
+    where('doctorUid', '==', doctorUid),   // <-- NUEVO
+    where('status', '==', 'open'),
+    where('dateISO', '>=', fromIso),
+    where('dateISO', '<=', toIso),
+    orderBy('dateISO', 'asc'),
     limit(opts?.max ?? 200)
   )
   return onSnapshot(qSlots, (snap) => {
-    let items: DoctorSlot[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-    if (opts?.specialty) items = items.filter(s => s.specialty === opts.specialty)
+    const items = snap.docs.map(d => {
+      const x = d.data() as any
+      return { id: d.id, ...x, startIso: x.dateISO }
+    })
     cb(items)
   })
 }
 
 /** ---- Mis citas (realtime) ---- */
 export async function subscribeMyAppointments(
-  cb: (list: Appointment[]) => void
+  cb: (list: any[]) => void
 ): Promise<Unsubscribe> {
   const u = await getCurrentUser()
   if (!u) throw new Error('No hay sesión activa')
-  const qAppts = query(collection(db, APPTS_COL), where('uid', '==', u.uid))
+
+  // SIN orderBy => no requiere índice compuesto
+  const qAppts = query(
+    collection(db, APPTS_COL),
+    where('patientUid', '==', u.uid)
+  )
+
   return onSnapshot(qAppts, (snap) => {
-    const items: Appointment[] = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
-    items.sort((a, b) => a.id.localeCompare(b.id))
+    const items = snap.docs.map(d => ({ id: d.id, ...(d.data() as any) }))
+    // ordena en cliente (más nuevo primero)
+    items.sort((a, b) => (b.dateISO ?? '').localeCompare(a.dateISO ?? ''))
     cb(items)
   })
 }
@@ -116,92 +133,61 @@ export async function subscribeMyAppointments(
  * 3) slot → 'requested', patientUid = uid
  * 4) appointment (merge) → 'requested'
  */
-export async function requestAppointmentBySlotId(slotId: string): Promise<Appointment> {
+
+/** ---- Reservar (vía Cloud Function) ---- */
+export async function requestAppointmentBySlotId(slotId: string): Promise<any> {
   const u = await getCurrentUser()
   if (!u) throw new Error('No hay sesión activa')
 
-  const appt = await runTransaction(db, async (tx) => {
-    const slotRef = doc(db, SLOTS_COL, slotId)
-    const slotSnap = await tx.get(slotRef)
-    if (!slotSnap.exists()) throw new Error('El horario ya no existe')
-    const slot = slotSnap.data() as DoctorSlot
-    if (slot.status !== 'available') throw new Error('Este horario ya fue tomado')
-
-    const id = apptId(slotId, u.uid)
-    const apptRef = doc(db, APPTS_COL, id)
-
-    // 🚫 Bloqueo de re-agendar mismo slot si ya lo cancelaste antes
-    const prevApptSnap = await tx.get(apptRef)
-    if (prevApptSnap.exists()) {
-      const prev = prevApptSnap.data() as Appointment
-      if (prev.status === 'cancelled') {
-        throw new Error('Ya cancelaste este horario antes. Elige otro horario.')
-      }
-      // Si existe con otro estado, también bloqueamos por consistencia
-      throw new Error('Ya existe una cita registrada para este horario.')
-    }
-
-    const apptData: Omit<Appointment, 'id'> = {
-      uid: u.uid,
-      slotId,
-      specialty: slot.specialty,
-      status: 'requested',
-      createdAt: serverTimestamp() as any,
-      updatedAt: serverTimestamp() as any,
-    }
-
-    tx.set(apptRef, apptData, { merge: false }) // create explícito
-    tx.update(slotRef, {
-      status: 'requested',
-      patientUid: u.uid,
-      updatedAt: serverTimestamp(),
-    })
-
-    return { id, ...(apptData as any) } as Appointment
-  })
-
-  // await queueAppointmentEmail('requested', appt).catch(() => {})
-  return appt
+  const fn = httpsCallable(getFunctions(undefined, 'southamerica-east1'), 'bookSlot')
+  const { data }: any = await fn({ slotId })
+  // data: { ok: true, appointmentId: string }
+  return { id: data.appointmentId, slotId, status: 'reserved', patientUid: u.uid }
 }
-
 /** ---- Cancelar (transacción) ----
  * Cita → 'cancelled' y, si el slot sigue ligado al paciente y no se "bookeó" por staff,
- * vuelve a 'available'.
+ * el slot vuelve a 'open'.
  */
+
 export async function cancelAppointmentById(appointmentId: string): Promise<void> {
-  const u = await getCurrentUser()
-  if (!u) throw new Error('No hay sesión activa')
-  if (!appointmentId.endsWith(`_${u.uid}`)) {
-    throw new Error('Cita no pertenece al usuario actual')
-  }
+  if (!appointmentId) throw new Error('appointmentId requerido')
 
-  await runTransaction(db, async (tx) => {
-    const apptRef = doc(db, APPTS_COL, appointmentId)
-    const apptSnap = await tx.get(apptRef)
-    if (!apptSnap.exists()) return
+  const functions = getFunctions(getApp(), 'southamerica-east1') // <-- usa la app inicializada
+  const cancelFn = httpsCallable<{ appointmentId: string }, { ok: true }>(
+    functions,
+    'cancelMyAppointment' // <-- que coincida EXACTO con el export
+  )
 
-    const appt = apptSnap.data() as Appointment
-    const slotRef = doc(db, SLOTS_COL, appt.slotId)
-    const slotSnap = await tx.get(slotRef)
+  await cancelFn({ appointmentId })
+}
 
-    if (slotSnap.exists()) {
-      const slot = slotSnap.data() as DoctorSlot
-      if (slot.patientUid === u.uid && slot.status !== 'booked') {
-        tx.update(slotRef, {
-          status: 'available',
-          patientUid: null,
-          updatedAt: serverTimestamp(),
-        })
-      }
-    }
+// Trae slots 'open' para un día (YYYY-MM-DD) y un médico concreto
+export async function subscribeOpenSlotsForDay(
+  doctorUid: string,
+  ymd: string, // '2025-10-14'
+  cb: (slots: any[]) => void,
+  opts?: { max?: number }
+): Promise<Unsubscribe> {
+  const fromIso = `${ymd}T00:00:00.000Z`
+  const toIso   = `${ymd}T23:59:59.999Z`
 
-    tx.update(apptRef, {
-      status: 'cancelled',
-      updatedAt: serverTimestamp(),
+  const qSlots = query(
+    collection(db, SLOTS_COL),
+    where('doctorUid', '==', doctorUid),
+    where('status', '==', 'open'),
+    where('dateISO', '>=', fromIso),
+    where('dateISO', '<=', toIso),
+    orderBy('dateISO', 'asc'),
+    limit(opts?.max ?? 100)
+  )
+
+  return onSnapshot(qSlots, (snap) => {
+    const items = snap.docs.map(d => {
+      const x = d.data() as any
+      return { id: d.id, ...x, startIso: x.dateISO } // si tu UI usa startIso
     })
+    cb(items)
   })
-
-  // await queueAppointmentEmail('cancelled', { id: appointmentId } as any).catch(() => {})
 }
 
 /* ---------- (Opcional) Outbox Email preparado ----------
