@@ -1,247 +1,250 @@
-# CliniTrack Monorepo
+# CliniTrack — Monorepo
 
-Este repositorio contiene las aplicaciones del sistema CliniTrack, orientado a la gestión clínica con distintos perfiles de usuario.
+Plataforma ambulatoria para gestión de horas médicas. Incluye:
+- **Portal Pacientes**: agendamiento, pagos (PayPal Sandbox), cancelación y perfil.
+- **Portal Staff**: panel admin (usuarios), agenda del médico con zona horaria correcta y estado dinámico de pago/confirmación.
+- **Cloud Functions**: creación/borrado de staff y médicos, generación de bloques horarios, reserva de horas, y **confirmación automática de cita al aprobar pago** + marcado de slot como `booked`.
 
-## 📂 Estructura actual
+---
+
+## 📂 Estructura
+
 ```
 clinitrack/
 ├── apps/
-│   ├── pacientes/      # portal público para pacientes
-│   └── staff/          # portal privado para funcionarios
-├── functions/          # Cloud Functions (backend compartido)
+│   ├── pacientes/      # Portal de pacientes (Vite + Vue 3)
+│   └── staff/          # Portal de funcionarios (admin + médico)
+├── functions/          # Cloud Functions (TypeScript)
 ├── packages/
-│   └── shared/         # código compartido (dominio, adapters, tipos)
-├── firebase.json       # config Firebase (functions)
-├── .firebaserc         # proyecto Firebase por defecto
-├── README.md
-└── .gitignore
+│   └── shared/         # Tipos/utilidades compartidas
+├── firebase.json       # Config de Firebase
+├── firestore.rules     # Reglas de seguridad (cliente)
+├── firestore.indexes.json
+└── README.md
 ```
 
-## ⚙️ Configuración rápida
+---
 
-### 1. Variables de entorno
+## ✅ Requisitos
 
-#### a. **Pacientes** (`apps/pacientes/.env.local`)
+- Node 18+ y npm  
+- Firebase CLI (`npm i -g firebase-tools`)  
+- Proyecto de Firebase (plan **Blaze** para Functions)  
+- Cuenta de **PayPal Developer** (Sandbox) para pruebas de pago
 
-Crea el archivo a partir de `apps/pacientes/.env.example`:
+---
+
+## ⚙️ Configuración
+
+### 1) En Firebase
+
+1. Crear proyecto y habilitar:
+   - **Authentication** → Email/Password
+   - **Firestore** (modo producción)
+   - **Cloud Functions** en región `southamerica-east1`
+2. Obtener credenciales web (API key, etc.) para los `.env.local`.
+
+### 2) Variables de entorno
+
+> No subas los `.env.local` al repo. Están ignorados en `.gitignore`.
+
+#### a) `apps/pacientes/.env.local`
+
+Copia desde `apps/pacientes/.env.example` y completa:
 
 ```env
-# Firebase
+# Firebase (pacientes)
 VITE_FB_API_KEY=__REPLACE_ME__
 VITE_FB_AUTH_DOMAIN=__REPLACE_ME__.firebaseapp.com
 VITE_FB_PROJECT_ID=__REPLACE_ME__
 VITE_FB_APP_ID=__REPLACE_ME__
 VITE_FB_MEASUREMENT_ID=G-________
 
-# Flag interno de demo (0/1)
+# Demo flag (0/1)
 VITE_DEMO=0
 
-# Pagos (PayPal)
-# Para desarrollo puedes dejar "sb" (Sandbox) o usar tu Client ID Sandbox real.
-VITE_PAYPAL_CLIENT_ID=sb
-
-# Moneda para el SDK de PayPal (USD por defecto en sandbox).
-# Si tu merchant sandbox soporta CLP, puedes cambiar a CLP.
-VITE_PAYPAL_CURRENCY=USD
+# PayPal Sandbox
+VITE_PAYPAL_CLIENT_ID=sb     # o tu Client ID sandbox real
+VITE_PAYPAL_CURRENCY=USD     # en sandbox suele ser USD
 ```
-Nota: No commitear .env.local (está ignorado).
 
-PayPal Sandbox (opcional pero recomendado para demo):
+> En https://developer.paypal.com crea una app **Sandbox** y copia el **Client ID**.
 
-- Ir a https://developer.paypal.com
- → My Apps & Credentials (Sandbox) → Create App → copiar Client ID y ponerlo en VITE_PAYPAL_CLIENT_ID.
+#### b) `apps/staff/.env.local`
 
-- En Sandbox → Accounts crear una cuenta Personal/Buyer, asignar contraseña.
-Ese email @personal.example.com y su clave se usan para Log in en el popup de PayPal.
+Copia desde `apps/staff/.env.example` y completa:
 
+```env
+VITE_FIREBASE_API_KEY=__REPLACE_ME__
+VITE_FIREBASE_AUTH_DOMAIN=__REPLACE_ME__.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=__REPLACE_ME__
+VITE_FIREBASE_STORAGE_BUCKET=__REPLACE_ME__.appspot.com
+VITE_FIREBASE_MESSAGING_SENDER_ID=__REPLACE_ME__
+VITE_FIREBASE_APP_ID=__REPLACE_ME__
 
-### b. **Staff** (`apps/staff/.env.local`)
-
-Crear apps/staff/.env.local a partir de apps/staff/.env.example:
-```
-VITE_FIREBASE_API_KEY=...
-VITE_FIREBASE_AUTH_DOMAIN=clinitrack-cad80.firebaseapp.com
-VITE_FIREBASE_PROJECT_ID=clinitrack-cad80
-VITE_FIREBASE_STORAGE_BUCKET=clinitrack-cad80.appspot.com
-VITE_FIREBASE_MESSAGING_SENDER_ID=...
-VITE_FIREBASE_APP_ID=...
-
+# Importante para Functions
 VITE_FUNCTIONS_REGION=southamerica-east1
 ```
 
-No subir .env.local al repo (está ignorado en .gitignore).
+### 3) Instalar dependencias
 
-2) Instalar dependencias
-
-```
-# raíz
-cd clinitrack
-
-# app pacientes
-cd apps/pacientes
-npm i
-
-# app staff
-cd ../staff
-npm i
+```bash
+# desde la raíz del repo
+cd apps/pacientes && npm i
+cd ../staff && npm i
+cd ../../functions && npm i
 ```
 
-3) Ejecutar en desarrollo (staff)
+---
 
-```
+## ▶️ Ejecutar en desarrollo
+
+```bash
 # Pacientes
-cd clinitrack/apps/pacientes
-npm run dev
-# http://localhost:5173
+cd apps/pacientes
+npm run dev   # http://localhost:5173
 
 # Staff
-cd clinitrack/apps/staff
-npm run dev
-# http://localhost:5173
+cd ../staff
+npm run dev   # http://localhost:5173 (o el siguiente puerto disponible)
 ```
 
-## Reglas de Firestore (resumen)
+---
 
-- users/{uid} y patients/{uid}: cada usuario puede leer/crear/actualizar su doc. Borrado deshabilitado desde cliente.
+## ☁️ Cloud Functions (backend)
 
-- rutIndex/{rut}: unicidad de RUT; sólo el dueño crea/elimina su entrada.
+### Qué hay implementado
 
-- doctor_slots/{slotId}:
+- **onPatientCreated / onPatientDeleted**: claims básicos.
+- **createStaffUser / deleteStaffUser** (HTTPS callable).
+- **createDoctor** (callable) y **generateSlots** (callable).
+- **bookSlot** (callable): crea cita `requested` y guarda `patientName`.
+- **onPaymentCreated** / **onPaymentStatusApproved** (Firestore triggers):
+  - Al detectar `payments.status = "approved"` → **appointment.status = "confirmed"**, set de `paidBy/paymentId/paidAt`, y marca el slot como **`booked`** si coincide el paciente.
+  - Idempotente y con *fallbacks* si el `appointmentId` no calza exacto.
+  - Hidrata `patientName` si faltaba.
 
-  - get/list para autenticados.
+### Despliegue
 
-  - available → requested (lo realiza el paciente) y requested → available (cancelación del propio paciente).
-
-  - No crean ni borran desde cliente.
-
-- appointments/{appointmentId}:
-
-  - crear requested, cancelar (historial).
-
-  - get propio o get por ID propio (útil para transacciones).
-
-  - list por uid.
-
-- payments/{paymentId}: registros de demo PayPal (approved/failed) visibles sólo por el dueño.
-
-- mail/: outbox para futuras notificaciones (sólo create).
-
-Las reglas completas están en la consola del proyecto; este README resume lo aplicado.
-
-## 🧪 Datos de prueba (pacientes)
-
-En Firestore → doctor_slots crear documentos con ID ${doctorId}_${startIso} y los campos:
-
-- doctorId: string (ej. el UID de “Dra. Ríos”)
-
-- doctorName: "Dra. Ríos"
-
-- specialty: "General"
-
-- startIso: "2025-10-07T16:00:00.000Z" (UTC)
-
-- endIso: "2025-10-07T16:15:00.000Z" (UTC)
-
-- status: "available"
-
-- patientUid: null
-
-La vista de pacientes muestra 7 días; asegúrate de que startIso caiga dentro de esa semana (UTC).
-
-## 👤 Área Paciente — MVP actual
-
-- Auth E/P + verificación de correo (banner con reenviar y cooldown).
-
-- Rutas protegidas: /app/citas, /app/resultados, /app/perfil requieren email verificado.
-
-- Recuperar contraseña: flujo de reset por correo.
-
-- Citas:
-
-  - Calendario de 7 días, filtro por especialidad, lista de horarios por médico.
-
-  - Crear cita (status = requested) y cancelar (queda cancelled para historial).
-
-  - Anti re-agendamiento del mismo slot cancelado (ingenuo).
-
-  - Realtime tanto de disponibilidad como de “mis citas”.
-
-- Pagos demo (PayPal Sandbox):
-
-  - Botón Pagar en citas requested → popup de PayPal (Sandbox).
-
-  - Al aprobar/cancelar se registra en payments (approved/failed) con orderId, amount, uid, appointmentId.
-
-  - La UI oculta el botón Pagar si existe un payment.approved para esa cita y muestra badge “paid”.
-
-El estado de la cita no cambia automáticamente a confirmed para mantener el MVP simple; la evolución natural es un Cloud Function que marque la cita como confirmada al detectar payments.approved.
-
-## ☁️ Cloud Functions (Admin)
-Qué hay implementado
-
-- createStaffUser (https callable): crea usuario en Auth y su perfil en Firestore /users/{uid} (con role y status).
-
-- deleteStaffUser (https callable): elimina usuario de Auth y borra su perfil de /users/{uid}.
-
-Región: southamerica-east1
-Runtime: Node 18 (Gen1)
-
-Despliegue (requiere plan Blaze)
-
-```
-cd clinitrack
-firebase deploy --only functions
+```bash
+# compila TS -> JS automáticamente antes del deploy
+cd functions
+npm run build
+firebase deploy --only functions --project <tu-proyecto>
 ```
 
-El firebase.json ya compila con tsc antes del deploy.
-Si cambiaste región, sincroniza también en el cliente (getFunctions(app, '...')).
+### Logs de verificación
 
+- Google Cloud Console → **Logging → Explorador de registros**  
+  Filtro rápido: `resource.labels.function_name="onPaymentCreated"`  
+  o `resource.labels.function_name="onPaymentStatusApproved"`
 
-## 👩‍💻 Panel Admin (app staff)
+---
 
-- Ruta: Admin → “+ Crear usuario” (modal).
+## 🔐 Reglas e índices de Firestore
 
-- Campos: correo, contraseña, rol.
+Este repo incluye **firestore.rules** y **firestore.indexes.json**.  
+Para desplegarlos:
 
-- Acciones:
+```bash
+firebase deploy --only firestore:rules,firestore:indexes --project <tu-proyecto>
+```
 
-    - Crear: invoca createStaffUser, cierra modal y refresca la lista.
+**Resumen de acceso (alto nivel):**
+- `users/{uid}` y `patients/{uid}`: el usuario puede leer y mantener su doc; delete restringido.
+- `doctor_slots/{slotId}`: lectura para autenticados; transiciones `open ↔ requested` controladas; creación/eliminación desde backend.
+- `appointments/{appointmentId}`: creación `requested`, cancelación (historial); lectura por dueño; listados paginados.
+- `payments/{paymentId}`: solo visibilidad del dueño; funciones reaccionan al `approved`.
 
-    - Eliminar: invoca deleteStaffUser y refresca la lista.
+> Revisa/ajusta en consola según tu necesidad exacta.
 
-Para usar el panel, inicia sesión con una cuenta cuyo documento en /users/{uid} tenga role: "admin".
+---
 
-## 📝 Convenciones de commits
+## 🧪 Flujo de prueba end-to-end
 
-Para mantener claridad y consistencia, se usarán prefijos en los mensajes de commit:
+1. **Admin (staff)** crea un **médico** (callable `createDoctor`) — tz por defecto `America/Santiago`.
+2. **Admin/médico** genera slots con `generateSlots` para un rango de fechas.
+3. **Paciente** inicia sesión, **agenda** un horario (cita `requested`).
+4. **Paciente paga** con PayPal *Sandbox* (se crea doc en `payments/` con `status: "approved"`).
+5. **Functions** confirman automáticamente la cita (`confirmed`) y marcan el slot `booked`.  
+   - La **agenda del médico** muestra día/hora correctos y el **estado** “pendiente de check-in”.
 
-- `chore:` tareas generales (estructura, configuración, limpieza)
-- `feat:` nuevas funcionalidades
-- `fix:` correcciones de errores
-- `docs:` cambios en documentación
-- `style:` cambios de formato/estilo (no funcionales)
-- `refactor:` reestructuración de código sin cambiar funcionalidad
-- `test:` adición o corrección de pruebas
+---
 
-> Ejemplo: `feat: agregar login de pacientes con Firebase`
+## 👩‍⚕️ Portal Staff (admin/médico)
 
+- **Admin**
+  - Crear/eliminar usuarios de staff (Cloud Functions).
+  - Crear médicos y generar disponibilidad (callables).
+- **Médico**
+  - Agenda agrupada por día, **hora local correcta** (tz del médico).
+  - Ver **nombre del paciente** y estado:
+    - `pendiente de pago` → pasa a `pendiente de check-in` cuando el pago fue aprobado/confirmado.
 
-## Tecnologías
-- Vue 3 + Vite
-- Firebase (Auth, Firestore, Functions)
-- TypeScript
+---
 
-## 📖 Bitácora de avances
+## 👤 Portal Pacientes (MVP)
 
-- **24-09-2025**: Creación de la estructura base del proyecto (apps/pacientes, apps/staff y packages/shared).
-- **24-09-2025**: Se crea el esqueleto navegable de la aplicación *Pacientes* (layouts públicos y privados, vistas base y router).
-- **26-09-2025**: Autenticación E/P, listener global de sesión y redirecciones básicas en staff.
-- **26-09-2025**: Firestore inicial + reglas mínimas de seguridad.
-- **27-09-2025**: Panel Admin en staff:
-    - UI + listado desde Firestore.
-    - Cloud Functions (Blaze): createStaffUser y deleteStaffUser.
-    -Modal de creación funcional y refresco de lista.
-- **03-10-2025**: Pacientes: verificación de email (banner + guards) y recuperar contraseña.
-- **04-10-2025**: Pacientes: MVP agendamiento (listar/crear/cancelar, filtro por especialidad, anti re-agendar, realtime).
-- **06-10-2025**: Pacientes: integración PayPal Sandbox (USD), registro en payments, ocultar CTA al tener approved.
- 
+- Registro / login / verificación de email / reset password.
+- Agenda por especialidad y médico, 7 días de vista.
+- Crear cita (`requested`) y cancelar (historial).
+- **Pagos PayPal Sandbox** (UI oculta el botón cuando ya está aprobado).
+- Realtime de “mis citas”.
+
+---
+
+## 🛠️ Solución de problemas
+
+- **El día aparece corrido (Domingo en vez de Lunes)**  
+  Verifica que:
+  - El médico tenga `tz: "America/Santiago"` en `/users/{uid}`.
+  - Los **slots** se hayan generado con esa TZ (la función `generateSlots` ya lo maneja).
+  - El portal **staff** esté actualizado (la agenda usa el `dateISO` real del slot).
+
+- **No se actualiza la cita tras pagar**  
+  Revisa en Logging los triggers `onPaymentCreated` / `onPaymentStatusApproved`.  
+  Confirma que el doc `payments/{id}` tenga:
+  - `status: "approved"`, `appointmentId`, `uid` (del paciente), `provider: "paypal"`.
+
+---
+
+## 🧾 Convenciones de commit (sugerido)
+
+- `feat:` nueva funcionalidad  
+- `fix:` bugfix  
+- `chore:` tareas de soporte  
+- `docs:` documentación  
+- `refactor:` cambios internos sin alterar comportamiento  
+
+Ej: `feat: confirmar cita al aprobar pago y marcar slot booked`
+
+---
+
+## 🧰 Tecnologías
+
+- **Vue 3 + Vite + TypeScript**  
+- **Firebase** (Auth, Firestore, Cloud Functions)  
+- **PayPal** (Sandbox) para pagos de demo
+
+---
+
+## 🗓️ Bitácora corta
+
+- **2025-09-24**: estructura monorepo, bases de Pacientes/Staff.  
+- **2025-09-26**: auth E/P + guards; reglas Firestore iniciales; panel admin (create/delete staff).  
+- **2025-10-03**: verificación de email y reset password (pacientes).  
+- **2025-10-04**: MVP de agendamiento; integración PayPal (Sandbox).  
+- **2025-10-12/13**:  
+  - **Functions**: confirmación automática de cita al aprobar pago; marcado de slot `booked`; `patientName` en `appointments`.  
+  - **Staff**: agenda de médico con **TZ correcta** y estado dinámico (pago/confirmación).  
+  - Reglas/índices y ajustes menores.
+
+---
+
+## 📌 Notas
+
+- Este README asume **2 apps en local**; para Hosting, define tus targets en `firebase.json` y despliega con:
+  ```bash
+  firebase deploy --only hosting,functions,firestore:rules,firestore:indexes --project <tu-proyecto>
+  ```
+- Si cambias región de Functions, sincroniza `VITE_FUNCTIONS_REGION` en el **staff**.
